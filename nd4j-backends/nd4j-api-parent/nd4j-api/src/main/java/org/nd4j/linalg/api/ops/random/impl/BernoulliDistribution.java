@@ -1,9 +1,15 @@
 package org.nd4j.linalg.api.ops.random.impl;
 
 import lombok.NonNull;
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.imports.NoOpNameFoundException;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.random.BaseRandomOp;
 import org.nd4j.linalg.exception.ND4JIllegalStateException;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * BernoulliDistribution implementation
@@ -47,6 +53,14 @@ public class BernoulliDistribution extends BaseRandomOp {
         this.extraArgs = new Object[] {this.prob};
     }
 
+    @Override
+    public Map<String, Object> propertiesForFunction() {
+        Map<String,Object> ret = new LinkedHashMap<>();
+        ret.put("prob",prob);
+        return ret;
+    }
+
+
 
     @Override
     public int opNum() {
@@ -54,7 +68,24 @@ public class BernoulliDistribution extends BaseRandomOp {
     }
 
     @Override
-    public String name() {
+    public String opName() {
         return "distribution_bernoulli";
+    }
+
+
+    @Override
+    public String onnxName() {
+        throw new NoOpNameFoundException("No onnx op opName found for " +  opName());
+    }
+
+    @Override
+    public String tensorflowName() {
+        throw new NoOpNameFoundException("No tensorflow op opName found for " +  opName());
+    }
+
+
+    @Override
+    public List<SDVariable> doDiff(List<SDVariable> f1) {
+        return null;
     }
 }

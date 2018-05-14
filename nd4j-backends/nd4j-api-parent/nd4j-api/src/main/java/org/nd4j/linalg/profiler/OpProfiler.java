@@ -158,7 +158,7 @@ public class OpProfiler {
     }
 
     /**
-     * This method returns op class name
+     * This method returns op class opName
      *
      * @param op
      * @return
@@ -183,8 +183,14 @@ public class OpProfiler {
                 return "PairWiseTransformOp";
         } else if (op instanceof IndexAccumulation) {
             return "IndexAccumulationOp";
-        } else
+        } else if (op instanceof CustomOp) {
+            return "CustomOp";
+        }else
             return "Unknown Op calls";
+    }
+
+    protected String getOpClass(CustomOp op) {
+        return "CustomOp";
     }
 
     /**
@@ -205,7 +211,7 @@ public class OpProfiler {
         invocationsCount.incrementAndGet();
 
         // number of invocations for this specific op
-        opCounter.incrementCount(op.name());
+        opCounter.incrementCount(op.opName());
 
         // number of invocations for specific class
         String opClass = getOpClass(op);
@@ -214,12 +220,12 @@ public class OpProfiler {
         if (op.x().data().address() == lastZ && op.z() == op.x() && op.y() == null) {
             // we have possible shift here
             matchingCounter.incrementCount(prevOpMatching + " -> " + opClass);
-            matchingCounterDetailed.incrementCount(prevOpMatchingDetailed + " -> " + opClass + " " + op.name());
+            matchingCounterDetailed.incrementCount(prevOpMatchingDetailed + " -> " + opClass + " " + op.opName());
         } else {
             matchingCounter.totalsIncrement();
             matchingCounterDetailed.totalsIncrement();
             if (op.y() != null && op.y().data().address() == lastZ) {
-                matchingCounterInverted.incrementCount(prevOpMatchingInverted + " -> " + opClass + " " + op.name());
+                matchingCounterInverted.incrementCount(prevOpMatchingInverted + " -> " + opClass + " " + op.opName());
             } else {
                 matchingCounterInverted.totalsIncrement();
             }
@@ -227,10 +233,10 @@ public class OpProfiler {
         }
         lastZ = op.z().data().address();
         prevOpMatching = opClass;
-        prevOpMatchingDetailed = opClass + " " + op.name();
-        prevOpMatchingInverted = opClass + " " + op.name();
+        prevOpMatchingDetailed = opClass + " " + op.opName();
+        prevOpMatchingInverted = opClass + " " + op.opName();
 
-        updatePairs(op.name(), opClass);
+        updatePairs(op.opName(), opClass);
 
         PenaltyCause[] causes = processOperands(op.x(), op.y(), op.z());
         for (PenaltyCause cause : causes) {
@@ -255,6 +261,35 @@ public class OpProfiler {
         }
     }
 
+    /**
+     * This method tracks op calls
+     *
+     * @param op
+     */
+    public void processOpCall(CustomOp op) {
+        // total number of invocations
+        invocationsCount.incrementAndGet();
+
+        // number of invocations for this specific op
+        opCounter.incrementCount(op.opName());
+
+        // number of invocations for specific class
+        String opClass = getOpClass(op);
+        classCounter.incrementCount(opClass);
+
+
+        lastZ = 0;
+        prevOpMatching = opClass;
+        prevOpMatchingDetailed = opClass + " " + op.opName();
+        prevOpMatchingInverted = opClass + " " + op.opName();
+
+        updatePairs(op.opName(), opClass);
+
+        // TODO: to be implemented
+        //for (OpProfilerListener listener : listeners) {
+        //  listener.invoke(op);
+        //}
+    }
 
     /**
      *
@@ -311,7 +346,17 @@ public class OpProfiler {
         classAggergator.putTime(getOpClass(op), op, currentTime);
 
         if (currentTime > THRESHOLD) {
-            String keyExt = getOpClass(op) + " " + op.name() + " (" + op.opNum() + ")";
+            String keyExt = getOpClass(op) + " " + op.opName() + " (" + op.opNum() + ")";
+            longAggergator.putTime(keyExt, currentTime);
+        }
+    }
+
+    public void timeOpCall(CustomOp op, long startTime) {
+        long currentTime = System.nanoTime() - startTime;
+        classAggergator.putTime(getOpClass(op), op, currentTime);
+
+        if (currentTime > THRESHOLD) {
+            String keyExt = getOpClass(op) + " " + op.opName() + " (" + op.opHash() + ")";
             longAggergator.putTime(keyExt, currentTime);
         }
     }
@@ -324,7 +369,7 @@ public class OpProfiler {
         String key = "BLAS";
         invocationsCount.incrementAndGet();
 
-        // using blas function name as key
+        // using blas function opName as key
         opCounter.incrementCount(blasOpName);
 
         // all blas calls share the same key
@@ -436,37 +481,19 @@ public class OpProfiler {
          */
 
         methodsAggregator.incrementCount(timeSpent);
+    }
+
+    public void processStackCall(CustomOp op, long timeStart) {
+        //StackTraceElement stack[] = Thread.currentThread().getStackTrace();
+
+        long timeSpent = (System.nanoTime() - timeStart) / 1000;
+
         /*
-        int level = 0;
-        String level1 = null;
-        String level2 = null;
-        for (int e = 1; e < stack.length; e++) {
-            boolean isNd4j = false;
-        
-            String cClass = stack[e].getClassName();
-            if (cClass == null|| cClass.isEmpty())
-                continue;
-        
-            String split[] = cClass.split("\\.");
-        
-        
-            // TODO: add optional mode here probably, saving results for subset of stack trace only
-            if (split[1].equals("nd4j"))
-                isNd4j = true;
-            else
-                level++;
-        
-            if (level == 1)
-                level1 = cClass + "#" + stack[e].getMethodName();
-            else if (level == 2)
-                level2 = cClass + "#" + stack[e].getMethodName();
-        
-        
-            long timeSpent = System.nanoTime() - timeStart;
-           // methodsAggregator.putTime(cClass + "." + stack[e].getMethodName() + "() :" + stack[e].getLineNumber(),  timeSpent);
-        
-        }
-        */
+           basically we want to unroll stack trace for few levels ABOVE nd4j classes
+           and update invocations list for last few levels, to keep that stat on few levels
+         */
+
+        methodsAggregator.incrementCount(timeSpent);
     }
 
 

@@ -9,8 +9,9 @@ import org.bytedeco.javacpp.DoublePointer;
 import org.bytedeco.javacpp.FloatPointer;
 import org.bytedeco.javacpp.IntPointer;
 
-import static org.bytedeco.javacpp.openblas.*;
 import org.nd4j.linalg.api.blas.BlasException ;
+
+import static org.bytedeco.javacpp.openblas.*;
 
 /**
  * CPU lapack implementation

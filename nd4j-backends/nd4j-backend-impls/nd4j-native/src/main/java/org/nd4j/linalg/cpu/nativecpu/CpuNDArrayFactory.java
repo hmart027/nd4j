@@ -21,6 +21,10 @@ package org.nd4j.linalg.cpu.nativecpu;
 
 
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.nd4j.linalg.api.ops.performance.PerformanceTracker;
+import org.nd4j.linalg.compression.CompressionUtils;
+import org.nd4j.linalg.memory.MemcpyDirection;
 import org.nd4j.linalg.primitives.Pair;
 import org.bytedeco.javacpp.*;
 import org.bytedeco.javacpp.indexer.*;
@@ -87,6 +91,18 @@ public class CpuNDArrayFactory extends BaseNDArrayFactory {
     @Override
     public void createBlas() {
         blas = new CpuBlas();
+        PointerPointer functions = new PointerPointer(10);
+        functions.put(0, Loader.addressof("cblas_sgemv"));
+        functions.put(1, Loader.addressof("cblas_dgemv"));
+        functions.put(2, Loader.addressof("cblas_sgemm"));
+        functions.put(3, Loader.addressof("cblas_dgemm"));
+        functions.put(4, Loader.addressof("cblas_sgemm_batch"));
+        functions.put(5, Loader.addressof("cblas_dgemm_batch"));
+        functions.put(6, Loader.addressof("LAPACKE_sgesvd"));
+        functions.put(7, Loader.addressof("LAPACKE_dgesvd"));
+        functions.put(8, Loader.addressof("LAPACKE_sgesdd"));
+        functions.put(9, Loader.addressof("LAPACKE_dgesdd"));
+        nativeOps.initializeFunctions(functions);
     }
 
     @Override
@@ -562,7 +578,7 @@ public class CpuNDArrayFactory extends BaseNDArrayFactory {
                             (IntPointer) m.shapeInfoDataBuffer().addressPointer());
 
                 } else {
-                    throw new UnsupportedOperationException("Illegal data type for copy");
+                    throw new UnsupportedOperationException("Illegal data opType for copy");
                 }
                 //Works for all cases...
 
@@ -668,7 +684,7 @@ public class CpuNDArrayFactory extends BaseNDArrayFactory {
             for (int j = 0; j < toConcat[i].rank(); j++)
                 if (j != dimension && toConcat[i].size(j) != outputShape[j]) {
                     throw new IllegalArgumentException(
-                            "Illegal concatneation at array " + i + " and shape element " + j);
+                            "Illegal concatenation at array " + i + " and shape element " + j);
                 }
 
 
@@ -746,6 +762,21 @@ public class CpuNDArrayFactory extends BaseNDArrayFactory {
         if (indexes == null || indexes.length < 1)
             throw new IllegalStateException("Indexes can't be null or zero-length");
 
+        int[] shape;
+        if (sourceDimension == 1)
+            shape = new int[] {indexes.length, source.shape()[sourceDimension]};
+        else if (sourceDimension == 0)
+            shape = new int[] {source.shape()[sourceDimension], indexes.length};
+        else
+            throw new UnsupportedOperationException("2D input is expected");
+        return pullRows(source, Nd4j.createUninitialized(shape, order), sourceDimension, indexes);
+    }
+
+    @Override
+    public INDArray pullRows(INDArray source, INDArray destination, int sourceDimension, int[] indexes) {
+        if (indexes == null || indexes.length < 1)
+            throw new IllegalStateException("Indexes can't be null or zero-length");
+
         int[] shape = null;
         if (sourceDimension == 1)
             shape = new int[] {indexes.length, source.shape()[sourceDimension]};
@@ -754,7 +785,15 @@ public class CpuNDArrayFactory extends BaseNDArrayFactory {
         else
             throw new UnsupportedOperationException("2D input is expected");
 
-        INDArray ret = Nd4j.createUninitialized(shape, order);
+        INDArray ret = destination;
+        if(ret == null){
+            ret = Nd4j.createUninitialized(shape, order);
+        } else {
+            if(!Arrays.equals(shape, destination.shape())){
+                throw new IllegalStateException("Cannot pull rows into destination array: expected destination array of" +
+                        " shape " + Arrays.toString(shape) + " but got destination array of shape " + Arrays.toString(destination.shape()));
+            }
+        }
 
         Nd4j.getCompressor().autoDecompress(source);
 
@@ -1144,7 +1183,7 @@ public class CpuNDArrayFactory extends BaseNDArrayFactory {
         DataBuffer buffer = null;
 
 
-        if (typeDst.ordinal() < 6) {
+        if (CompressionUtils.goingToCompress(typeSrc, typeDst)) {
             // all types below 6 are compression modes
             BytePointer pointer = new BytePointer(source.length() * elementSize);
             CompressionDescriptor descriptor = new CompressionDescriptor(source, typeDst.name());
@@ -1200,7 +1239,11 @@ public class CpuNDArrayFactory extends BaseNDArrayFactory {
         IntPointer intPointer = new IntPointer(shapeBufferPointer);
         IntPointer newPointer = new IntPointer(length);
 
+        val perfD = PerformanceTracker.getInstance().helperStartTransaction();
+
         Pointer.memcpy(newPointer, intPointer, shapeBufferPointer.limit());
+
+        PerformanceTracker.getInstance().helperRegisterTransaction(0, perfD, shapeBufferPointer.limit(), MemcpyDirection.HOST_TO_HOST);
 
         DataBuffer shapeBuffer = Nd4j.createBuffer(
                 newPointer,
@@ -1215,7 +1258,12 @@ public class CpuNDArrayFactory extends BaseNDArrayFactory {
 
         if(dataBufferElementSize == (Float.SIZE / 8)) {
             FloatPointer dPointer = new FloatPointer(dataPointer.limit() / dataBufferElementSize);
+
+            val perfX = PerformanceTracker.getInstance().helperStartTransaction();
+
             Pointer.memcpy(dPointer, dataPointer, dataPointer.limit());
+
+            PerformanceTracker.getInstance().helperRegisterTransaction(0, perfX, dataPointer.limit(), MemcpyDirection.HOST_TO_HOST);
 
             data = Nd4j.createBuffer(dPointer,
                     DataBuffer.Type.FLOAT,
@@ -1224,7 +1272,12 @@ public class CpuNDArrayFactory extends BaseNDArrayFactory {
         }
         else if(dataBufferElementSize == (Double.SIZE / 8)) {
             DoublePointer dPointer = new DoublePointer(dataPointer.limit() / dataBufferElementSize);
+
+            val perfX = PerformanceTracker.getInstance().helperStartTransaction();
+
             Pointer.memcpy(dPointer, dataPointer, dataPointer.limit());
+
+            PerformanceTracker.getInstance().helperRegisterTransaction(0, perfX, dataPointer.limit(), MemcpyDirection.HOST_TO_HOST);
 
             data = Nd4j.createBuffer(dPointer,
                     DataBuffer.Type.DOUBLE,
@@ -1250,8 +1303,6 @@ public class CpuNDArrayFactory extends BaseNDArrayFactory {
     @Override
     public INDArray createFromNpyFile(File file) {
         byte[] pathBytes = file.getAbsolutePath().getBytes(Charset.forName("UTF-8" ));
-        String otherBytes = new String(pathBytes);
-        System.out.println(otherBytes);
         ByteBuffer directBuffer = ByteBuffer.allocateDirect(pathBytes.length).order(ByteOrder.nativeOrder());
         directBuffer.put(pathBytes);
         directBuffer.rewind();

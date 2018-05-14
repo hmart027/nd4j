@@ -19,12 +19,13 @@
 
 package org.nd4j.linalg.api.ops.impl.accum;
 
-import org.apache.commons.math3.util.FastMath;
-import org.nd4j.linalg.api.complex.IComplexNumber;
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.autodiff.samediff.SameDiff;
+import org.nd4j.imports.NoOpNameFoundException;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.BaseAccumulation;
-import org.nd4j.linalg.api.ops.Op;
-import org.nd4j.linalg.factory.Nd4j;
+
+import java.util.List;
 
 /**
  * Calculate the absolute minimum over a vector
@@ -32,6 +33,13 @@ import org.nd4j.linalg.factory.Nd4j;
  * @author raver119@gmail.com
  */
 public class AMin extends BaseAccumulation {
+    public AMin(SameDiff sameDiff, SDVariable i_v, int[] dimensions) {
+        super(sameDiff, i_v, dimensions);
+    }
+
+    public AMin(SameDiff sameDiff, SDVariable i_v, SDVariable i_v2, int[] dimensions) {
+        super(sameDiff, i_v, i_v2, dimensions);
+    }
 
     public AMin() {}
 
@@ -58,63 +66,14 @@ public class AMin extends BaseAccumulation {
     }
 
     @Override
-    public String name() {
+    public String opName() {
         return "amin";
     }
 
-    @Override
-    public float op(float origin, float other) {
-        return FastMath.abs(origin);
-    }
 
     @Override
-    public double op(double origin, double other) {
-        return FastMath.abs(origin);
-    }
-
-    @Override
-    public double update(double accum, double x) {
-        return FastMath.min(FastMath.abs(accum), FastMath.abs(x));
-    }
-
-    @Override
-    public double update(double accum, double x, double y) {
-        return FastMath.min(FastMath.abs(accum), FastMath.abs(x));
-    }
-
-    @Override
-    public float update(float accum, float x) {
-        return FastMath.min(FastMath.abs(accum), FastMath.abs(x));
-    }
-
-    @Override
-    public float update(float accum, float x, float y) {
-        return FastMath.min(FastMath.abs(accum), FastMath.abs(x));
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, double x) {
-        return (accum.absoluteValue().doubleValue() < x ? accum : Nd4j.createComplexNumber(x, 0));
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, double x, double y) {
-        return (accum.absoluteValue().doubleValue() < x ? accum : Nd4j.createComplexNumber(x, 0));
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, IComplexNumber x) {
-        return (accum.absoluteValue().doubleValue() < x.absoluteValue().doubleValue() ? accum : x);
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, IComplexNumber x, IComplexNumber y) {
-        return (accum.absoluteValue().doubleValue() < x.absoluteValue().doubleValue() ? accum : x);
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, IComplexNumber x, double y) {
-        return (accum.absoluteValue().doubleValue() < x.absoluteValue().doubleValue() ? accum : x);
+    public Number getFinalResult() {
+        return null;
     }
 
     @Override
@@ -132,26 +91,30 @@ public class AMin extends BaseAccumulation {
         return 65503.0f;
     }
 
-    @Override
-    public Op opForDimension(int index, int dimension) {
-        INDArray xAlongDimension = x.vectorAlongDimension(index, dimension);
-
-        if (y() != null)
-            return new AMin(xAlongDimension, y.vectorAlongDimension(index, dimension), xAlongDimension.length());
-        else
-            return new AMin(x.vectorAlongDimension(index, dimension));
-
-    }
 
     @Override
-    public Op opForDimension(int index, int... dimension) {
-        INDArray xAlongDimension = x.tensorAlongDimension(index, dimension);
-
-        if (y() != null)
-            return new AMin(xAlongDimension, y.tensorAlongDimension(index, dimension), xAlongDimension.length());
-        else
-            return new AMin(x.tensorAlongDimension(index, dimension));
+    public List<SDVariable> doDiff(List<SDVariable> f1) {
+        return null;
     }
 
 
+    @Override
+    public String onnxName() {
+        throw new NoOpNameFoundException("No onnx op opName found for " +  opName());
+    }
+
+    @Override
+    public String tensorflowName() {
+        throw new NoOpNameFoundException("No tensorflow op opName found for " +  opName());
+    }
+
+    @Override
+    public Type opType() {
+        return Type.REDUCE;
+    }
+
+    @Override
+    public Type getOpType() {
+        return opType();
+    }
 }

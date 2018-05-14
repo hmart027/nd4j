@@ -20,8 +20,14 @@
 package org.nd4j.linalg.api.ops.random.impl;
 
 import lombok.NonNull;
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.imports.NoOpNameFoundException;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.random.BaseRandomOp;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * AlphaDropOut implementation as Op
@@ -55,6 +61,15 @@ public class AlphaDropOut extends BaseRandomOp {
         init(x, null, z, n);
     }
 
+    @Override
+    public Map<String, Object> propertiesForFunction() {
+        Map<String,Object> ret = new LinkedHashMap<>();
+        ret.put("p",p);
+        ret.put("a",a);
+        ret.put("alphaPrime",alphaPrime);
+        ret.put("b",b);
+        return ret;
+    }
 
     @Override
     public int opNum() {
@@ -62,7 +77,7 @@ public class AlphaDropOut extends BaseRandomOp {
     }
 
     @Override
-    public String name() {
+    public String opName() {
         return "alpha_dropout";
     }
 
@@ -70,5 +85,21 @@ public class AlphaDropOut extends BaseRandomOp {
     public void init(INDArray x, INDArray y, INDArray z, long n) {
         super.init(x, y, z, n);
         this.extraArgs = new Object[] {p, a, b, alphaPrime};
+    }
+
+    @Override
+    public String onnxName() {
+        throw new NoOpNameFoundException("No onnx op opName found for " +  opName());
+    }
+
+    @Override
+    public String tensorflowName() {
+        throw new NoOpNameFoundException("No tensorflow op opName found for " +  opName());
+    }
+
+
+    @Override
+    public List<SDVariable> doDiff(List<SDVariable> f1) {
+        return null;
     }
 }

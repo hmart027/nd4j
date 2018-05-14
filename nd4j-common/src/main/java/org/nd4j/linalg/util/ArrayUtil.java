@@ -20,7 +20,9 @@
 package org.nd4j.linalg.util;
 
 import com.google.common.primitives.Ints;
+import lombok.val;
 import org.apache.commons.lang3.RandomUtils;
+import org.nd4j.base.Preconditions;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -36,6 +38,87 @@ public class ArrayUtil {
 
 
     private ArrayUtil() {}
+
+
+    /**
+     * Returns true if any array elements are negative.
+     * If the array is null, it returns false
+     * @param arr the array to test
+     * @return
+     */
+    public static boolean containsAnyNegative(int[] arr) {
+        if(arr == null)
+            return false;
+
+        for(int i = 0; i < arr.length; i++) {
+            if(arr[i] < 0)
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     *
+     * @param arrs
+     * @param check
+     * @return
+     */
+    public static boolean anyLargerThan(int[] arrs, int check) {
+        for(int i = 0; i < arrs.length; i++) {
+            if(arrs[i] > check)
+                return true;
+        }
+
+        return false;
+    }
+
+
+    /**
+     *
+     * @param arrs
+     * @param check
+     * @return
+     */
+    public static boolean anyLessThan(int[] arrs, int check) {
+        for(int i = 0; i < arrs.length; i++) {
+            if(arrs[i] < check)
+                return true;
+        }
+
+        return false;
+    }
+
+
+    /**
+     * Convert a int array to a string array
+     * @param arr the array to convert
+     * @return the equivalent string array
+     */
+    public static String[] convertToString(int[] arr) {
+        Preconditions.checkNotNull(arr);
+        String[] ret = new String[arr.length];
+        for(int i = 0; i < arr.length; i++) {
+            ret[i] = String.valueOf(arr[i]);
+        }
+
+        return ret;
+    }
+
+
+    /**
+     * Proper comparison contains for list of int
+     * arrays
+     * @param list the to search
+     * @param target the target int array
+     * @return whether the given target
+     * array is contained in the list
+     */
+    public static boolean listOfIntsContains(List<int[]> list,int[] target) {
+        for(int[] arr : list)
+            if(Arrays.equals(target,arr))
+                return true;
+        return false;
+    }
 
     /**
      * Repeat a value n times
@@ -254,6 +337,23 @@ public class ArrayUtil {
         int ret = 1;
         for (int i = 0; i < mult.size(); i++)
             ret *= mult.get(i);
+        return ret;
+    }
+
+
+
+    /**
+     * Product of an int array
+     * @param mult the elements
+     *            to calculate the sum for
+     * @return the product of this array
+     */
+    public static int prod(long... mult) {
+        if (mult.length < 1)
+            return 0;
+        int ret = 1;
+        for (int i = 0; i < mult.length; i++)
+            ret *= mult[i];
         return ret;
     }
 
@@ -885,8 +985,10 @@ public class ArrayUtil {
      * item
      */
     public static int[] removeIndex(int[] data, int... index) {
-        if (index.length >= data.length)
-            throw new IllegalStateException("Illegal remove: indexes.length > data.length");
+        if (index.length >= data.length) {
+            throw new IllegalStateException("Illegal remove: indexes.length > data.length (index.length="
+                    + index.length + ", data.length=" + data.length + ")");
+        }
         int offset = 0;
         /*
             workaround for non-existent indexes (such as Integer.MAX_VALUE)
@@ -936,7 +1038,7 @@ public class ArrayUtil {
         for (int i = 0; i < validationLength; i++) {
             if (aShape[axes[0][i]] != bShape[axes[1][i]])
                 throw new IllegalArgumentException(
-                                "Size of the given axes a" + "t each dimension must be the same size.");
+                                "Size of the given axes a" + " t each dimension must be the same size.");
             if (axes[0][i] < 0)
                 axes[0][i] += aShape.length;
             if (axes[1][i] < 0)
@@ -1569,6 +1671,82 @@ public class ArrayUtil {
     }
 
 
+    public static float[] flatten(float[][][] arr) {
+        float[] ret = new float[arr.length * arr[0].length * arr[0][0].length];
+
+        int count = 0;
+        for (int i = 0; i < arr.length; i++)
+            for (int j = 0; j < arr[0].length; j++)
+                for (int k = 0; k < arr[0][0].length; k++) {
+                    ret[count++] = arr[i][j][k];
+                }
+        return ret;
+    }
+
+    public static double[] flatten(double[][][] arr) {
+        double[] ret = new double[arr.length * arr[0].length * arr[0][0].length];
+
+        int count = 0;
+        for (int i = 0; i < arr.length; i++)
+            for (int j = 0; j < arr[0].length; j++)
+                for (int k = 0; k < arr[0][0].length; k++) {
+                    ret[count++] = arr[i][j][k];
+                }
+        return ret;
+    }
+
+    public static int[] flatten(int[][][] arr) {
+        int[] ret = new int[arr.length * arr[0].length * arr[0][0].length];
+
+        int count = 0;
+        for (int i = 0; i < arr.length; i++)
+            for (int j = 0; j < arr[0].length; j++)
+                for (int k = 0; k < arr[0][0].length; k++) {
+                    ret[count++] = arr[i][j][k];
+                }
+        return ret;
+    }
+
+
+    public static float[] flatten(float[][][][] arr) {
+        float[] ret = new float[arr.length * arr[0].length * arr[0][0].length * arr[0][0][0].length];
+
+        int count = 0;
+        for (int i = 0; i < arr.length; i++)
+            for (int j = 0; j < arr[0].length; j++)
+                for (int k = 0; k < arr[0][0].length; k++)
+                    for (int m = 0; m < arr[0][0][0].length; m++)
+                        ret[count++] = arr[i][j][k][m];
+
+        return ret;
+    }
+
+    public static double[] flatten(double[][][][] arr) {
+        double[] ret = new double[arr.length * arr[0].length * arr[0][0].length * arr[0][0][0].length];
+
+        int count = 0;
+        for (int i = 0; i < arr.length; i++)
+            for (int j = 0; j < arr[0].length; j++)
+                for (int k = 0; k < arr[0][0].length; k++)
+                    for (int m = 0; m < arr[0][0][0].length; m++)
+                        ret[count++] = arr[i][j][k][m];
+
+        return ret;
+    }
+
+    public static int[] flatten(int[][][][] arr) {
+        int[] ret = new int[arr.length * arr[0].length * arr[0][0].length * arr[0][0][0].length];
+
+        int count = 0;
+        for (int i = 0; i < arr.length; i++)
+            for (int j = 0; j < arr[0].length; j++)
+                for (int k = 0; k < arr[0][0].length; k++)
+                    for (int m = 0; m < arr[0][0][0].length; m++)
+                        ret[count++] = arr[i][j][k][m];
+
+        return ret;
+    }
+
 
     public static int[] flatten(int[][] arr) {
         int[] ret = new int[arr.length * arr[0].length];
@@ -1865,7 +2043,7 @@ public class ArrayUtil {
     /** Calculate the shape of an arbitrary multi-dimensional array. Assumes:<br>
      * (a) array is rectangular (not ragged) and first elements (i.e., array[0][0][0]...) are non-null <br>
      * (b) First elements have > 0 length. So array[0].length > 0, array[0][0].length > 0, etc.<br>
-     * Can pass any Java array type: double[], Object[][][], float[][], etc.<br>
+     * Can pass any Java array opType: double[], Object[][][], float[][], etc.<br>
      * Length of returned array is number of dimensions; returned[i] is size of ith dimension.
      */
     public static int[] arrayShape(Object array) {
@@ -1903,7 +2081,7 @@ public class ArrayUtil {
         } else if (current instanceof short[]) {
             shape[shape.length - 1] = ((short[]) current).length;
         } else
-            throw new IllegalStateException("Unknown array type"); //Should never happen
+            throw new IllegalStateException("Unknown array opType"); //Should never happen
         return shape;
     }
 
@@ -2109,5 +2287,14 @@ public class ArrayUtil {
             return null;
 
         return list.get(RandomUtils.nextInt(0, list.size()));
+    }
+
+    /**
+     * Convert an int
+     * @param bool
+     * @return
+     */
+    public static int fromBoolean(boolean bool) {
+        return bool ? 1 : 0;
     }
 }

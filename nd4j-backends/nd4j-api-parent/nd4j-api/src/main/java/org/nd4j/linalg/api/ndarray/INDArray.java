@@ -19,10 +19,12 @@
 
 package org.nd4j.linalg.api.ndarray;
 
+import com.google.flatbuffers.FlatBufferBuilder;
 import org.nd4j.linalg.api.blas.params.MMulTranspose;
 import org.nd4j.linalg.api.buffer.DataBuffer;
 import org.nd4j.linalg.api.complex.IComplexNDArray;
 import org.nd4j.linalg.api.complex.IComplexNumber;
+import org.nd4j.linalg.exception.Nd4jNoSuchWorkspaceException;
 import org.nd4j.linalg.indexing.INDArrayIndex;
 import org.nd4j.linalg.indexing.ShapeOffsetResolution;
 import org.nd4j.linalg.indexing.conditions.Condition;
@@ -796,7 +798,107 @@ public interface INDArray extends Serializable {
      */
     INDArray get(INDArrayIndex... indexes);
 
+    /**
+     * Return a mask on whether each element
+     * matches the given condition
+     * @param comp
+     * @param condition
+     * @return
+     */
+    INDArray match(INDArray comp,Condition condition);
 
+    /**
+     * Returns a mask
+     * @param comp
+     * @param condition
+     * @return
+     */
+    INDArray match(Number comp,Condition condition);
+
+    /**
+     * Boolean indexing:
+     * Return the element if it fulfills the condition in
+     * result array
+     * @param comp the comparison array
+     * @param condition the condition to apply
+     * @return the array fulfilling the criteria
+     */
+    INDArray getWhere(INDArray comp,Condition condition);
+
+    /**
+     * Boolean indexing:
+     * Return the element if it fulfills the condition in
+     * result array
+     * @param comp the comparison array
+     * @param condition the condition to apply
+     * @return the array fulfilling the criteria
+     */
+    INDArray getWhere(Number comp,Condition condition);
+
+    /**
+     * Assign the element according
+     * to the comparison array
+     * @param comp the comparison array
+     * @param put the elements to put
+     * @param condition the condition for masking on
+     * @return
+     */
+    INDArray putWhere(INDArray comp,INDArray put,Condition condition);
+
+
+    /**
+     * Assign the element according
+     * to the comparison array
+     * @param comp the comparison array
+     * @param put the elements to put
+     * @param condition the condition for masking on
+     * @return
+     */
+    INDArray putWhere(Number comp,INDArray put,Condition condition);
+
+
+    /**
+     * Use a pre computed mask
+     * for assigning arrays
+     * @param mask the mask to use
+     * @param put the array to put
+     * @return the resulting array
+     */
+    INDArray putWhereWithMask(INDArray mask,INDArray put);
+
+
+    /**
+     * Use a pre computed mask
+     * for assigning arrays
+     * @param mask the mask to use
+     * @param put the array to put
+     * @return the resulting array
+     */
+    INDArray putWhereWithMask(INDArray mask,Number put);
+
+    /**
+     * Assign the element according
+     * to the comparison array
+     * @param comp the comparison array
+     * @param put the elements to put
+     * @param condition the condition for masking on
+     * @return
+     */
+    INDArray putWhere(Number comp,Number put,Condition condition);
+
+    /**
+     * Get the elements from this ndarray based on the specified indices
+     * @param indices an ndaray of the indices to get the elements for
+     * @return the elements to get the array for
+     */
+    INDArray get(INDArray indices);
+
+    /**
+     * Get the elements from this ndarray based on the specified indices
+     * @param indices an ndaray of the indices to get the elements for
+     * @return the elements to get the array for
+     */
+    INDArray get(List<List<Integer>> indices);
 
     /**
      * Get an INDArray comprised of the specified columns only. Copy operation.
@@ -1032,6 +1134,38 @@ public interface INDArray extends Serializable {
      * Returns the (1-norm) distance.
      */
     double distance1(INDArray other);
+
+
+
+    /**
+     * Put element in to the indices denoted by
+     * the indices ndarray.
+     * This is equivalent to:
+     * a[indices] = element
+     *
+     *  in numpy.
+     *
+     * @param indices the indices to put
+     * @param element the element array to put
+     * @return this array
+     */
+    INDArray put(List<List<Integer>> indices,INDArray element);
+
+
+    /**
+     * Put element in to the indices denoted by
+     * the indices ndarray.
+     * This is equivalent to:
+     * a[indices] = element
+     *
+     *  in numpy.
+     *
+     * @param indices the indices to put
+     * @param element the element array to put
+     * @return this array
+     */
+    INDArray put(INDArray indices,INDArray element);
+
 
 
     /**
@@ -1319,6 +1453,68 @@ public interface INDArray extends Serializable {
     INDArray mmul(INDArray other);
 
 
+
+    /**
+     * Convert this ndarray to a 2d double matrix.
+     * Note that THIS SHOULD NOT BE USED FOR SPEED.
+     * This is mainly used for integrations with other libraries.
+     * Due to nd4j's off  heap nature, moving data on heap is very expensive
+     * and should not be used if possible.
+     * @return a copy of this array as a 2d double array
+     */
+    double[][] toDoubleMatrix();
+
+    /**
+     * Convert this ndarray to a 1d double matrix.
+     * Note that THIS SHOULD NOT BE USED FOR SPEED.
+     * This is mainly used for integrations with other libraries.
+     * Due to nd4j's off  heap nature, moving data on heap is very expensive
+     * and should not be used if possible.
+     * @return a copy of this array as a 1d double array
+     */
+    double[] toDoubleVector();
+
+    /**
+     * Convert this ndarray to a 1d float vector.
+     * Note that THIS SHOULD NOT BE USED FOR SPEED.
+     * This is mainly used for integrations with other libraries.
+     * Due to nd4j's off  heap nature, moving data on heap is very expensive
+     * and should not be used if possible.
+     * @return a copy of this array as a 1d float array
+     */
+    float[] toFloatVector();
+
+    /**
+     * Convert this ndarray to a 2d float matrix.
+     * Note that THIS SHOULD NOT BE USED FOR SPEED.
+     * This is mainly used for integrations with other libraries.
+     * Due to nd4j's off  heap nature, moving data on heap is very expensive
+     * and should not be used if possible.
+     * @return a copy of this array as a 2d float array
+     */
+    float[][] toFloatMatrix();
+
+    /**
+     * Convert this ndarray to a 1d int matrix.
+     * Note that THIS SHOULD NOT BE USED FOR SPEED.
+     * This is mainly used for integrations with other libraries.
+     * Due to nd4j's off  heap nature, moving data on heap is very expensive
+     * and should not be used if possible.
+     * @return a copy of this array as a 1d int array
+     */
+    int[] toIntVector();
+
+
+    /**
+     * Convert this ndarray to a 2d int matrix.
+     * Note that THIS SHOULD NOT BE USED FOR SPEED.
+     * This is mainly used for integrations with other libraries.
+     * Due to nd4j's off  heap nature, moving data on heap is very expensive
+     * and should not be used if possible.
+     * @return a copy of this array as a 2d int array
+     */
+    int[][] toIntMatrix();
+
     /**
      * Perform an copy matrix multiplication
      *
@@ -1453,7 +1649,7 @@ public interface INDArray extends Serializable {
      * in place (element wise) multiplication of two NDArrays
      *
      * @param other the second ndarray to multiply
-     * @return the result of the addition
+     * @return the result of the multiplication
      */
     INDArray muli(INDArray other);
 
@@ -1470,7 +1666,7 @@ public interface INDArray extends Serializable {
      * in place (element wise) subtraction of two NDArrays
      *
      * @param other the second ndarray to subtract
-     * @return the result of the addition
+     * @return the result of the subtraction
      */
     INDArray subi(INDArray other);
 
@@ -1836,14 +2032,25 @@ public interface INDArray extends Serializable {
     /**
      * stride setter
      * @param stride
+     * @deprecated, use {@link #reshape(int...) }
      */
+    @Deprecated
     void setStride(int... stride);
 
     /**
      * Shape setter
      * @param shape
+     * @deprecated, use {@link #reshape(int...) }
      */
+    @Deprecated
     void setShape(int... shape);
+    
+    /**
+     * Shape and stride setter
+     * @param shape
+     * @param stride 
+     */
+    public void setShapeAndStride(int[] shape, int[] stride);
 
     /**
      * Set the ordering
@@ -2194,12 +2401,32 @@ public interface INDArray extends Serializable {
     boolean isRowVector();
 
     /**
+     * Returns true if the number of columns is 1
+     *
+     * @return true if the number of columns is 1
+     */
+    boolean isColumnVectorOrScalar();
+
+    /**
+     * Returns true if the number of rows is 1
+     *
+     * @return true if the number of rows is 1
+     */
+    boolean isRowVectorOrScalar();
+
+    /**
      * Returns true if this ndarray is a vector
      *
      * @return whether this ndarray is a vector
      */
     boolean isVector();
 
+    /**
+     * Returns true if this ndarray is a vector or scalar
+     *
+     * @return whether this ndarray is a vector or scalar
+     */
+    boolean isVectorOrScalar();
 
     /**
      * Returns whether the matrix
@@ -2276,6 +2503,14 @@ public interface INDArray extends Serializable {
      * @return the broadcasted ndarray
      */
     INDArray broadcast(int... shape);
+
+
+    /**
+     * Broadcasts this ndarray to be the specified shape
+     *
+     * @return the broadcasted ndarray
+     */
+    INDArray broadcast(INDArray result);
 
 
     /**
@@ -2627,21 +2862,63 @@ public interface INDArray extends Serializable {
     INDArray leverage();
 
     /**
-     * This method detaches INDArray from current Workspace, and attaches it to Workspace with a given Id
+     * This method detaches INDArray from current Workspace, and attaches it to Workspace with a given Id - if a workspace
+     * with that ID exists. If no workspace with the specified ID exists, the current INDArray is returned unmodified.
      *
      * @param id ID of the workspace to leverage to
      * @return
+     * @see #leverageTo(String, boolean)
      */
     INDArray leverageTo(String id);
+
+    /**
+     * This method detaches INDArray from current Workspace, and attaches it to Workspace with a given Id.
+     * If enforceExistence == true, and no workspace with the specified ID exists, then an {@link Nd4jNoSuchWorkspaceException}
+     * is thrown. Otherwise, if enforceExistance == false and no workspace with the specified ID exists, then the current
+     * INDArray is returned unmodified (same as {@link #leverage()}
+     *
+     * @param id ID of the workspace to leverage to
+     * @param enforceExistence If true, and the specified workspace does not exist: an {@link Nd4jNoSuchWorkspaceException}
+     *                         will be thrown.
+     * @return The INDArray, leveraged to the specified workspace
+     * @see #leverageTo(String)
+     */
+    INDArray leverageTo(String id, boolean enforceExistence) throws Nd4jNoSuchWorkspaceException;
+
+    /**
+     * This method detaches INDArray from current Workspace, and attaches it to Workspace with a given Id, if a workspace
+     * with the given ID is open and active.
+     *
+     * If the workspace does not exist, or is not active, the array is detached from any workspaces.
+     *
+     * @param id ID of the workspace to leverage to
+     * @return The INDArray, leveraged to the specified workspace (if it exists and is active) otherwise the detached array
+     * @see #leverageTo(String)
+     */
+    INDArray leverageOrDetach(String id);
 
     /**
      * This method pulls this INDArray into current Workspace.
      *
      * PLEASE NOTE: If there's no current Workspace - INDArray returned as is
      *
-     * @return
+     * @return Migrated INDArray or <i>this</i> if no current workspace
+     * @see #migrate(boolean)
      */
     INDArray migrate();
+
+    /**
+     * This method pulls this INDArray into current Workspace, or optionally detaches if no workspace is present.<br>
+     * That is:<br>
+     * If current workspace is present/active, INDArray is migrated to it.<br>
+     * If no current workspace is present/active, one of two things occur:
+     * 1. If detachOnNoWs arg is true: if there is no current workspace, INDArray is detached
+     * 2. If detachOnNoWs arg is false: this INDArray is returned as-is (no-op) - equivalent to {@link #migrate()}
+     *
+     * @param detachOnNoWs If true: detach on no WS. If false and no workspace: return this.
+     * @return Migrated INDArray
+     */
+    INDArray migrate(boolean detachOnNoWs);
 
     /**
        * This method returns percentile value for this INDArray
@@ -2712,5 +2989,14 @@ public interface INDArray extends Serializable {
     int underlyingRank();
 
 
+    /**
+     * Add an {@link INDArray}
+     * to flatbuffers builder
+     * @param builder the builder to use
+     * @return the offset to add
+     */
+    int toFlatArray(FlatBufferBuilder builder);
 
+    INDArray convertToFloats();
+    INDArray convertToDoubles();
 }

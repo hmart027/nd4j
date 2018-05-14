@@ -1,6 +1,5 @@
 package org.nd4j.linalg.indexing;
 
-import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import lombok.Data;
 import net.ericaro.neoitertools.Generator;
@@ -96,6 +95,11 @@ public class SpecifiedIndex implements INDArrayIndex {
     }
 
     @Override
+    public void init(long begin, long end, long max) {
+
+    }
+
+    @Override
     public void init(long begin, long end) {
 
     }
@@ -110,7 +114,7 @@ public class SpecifiedIndex implements INDArrayIndex {
      * Iterate over a cross product of the
      * coordinates
      * @param indexes the coordinates to iterate over.
-     *                Each element of the array should be of type {@link SpecifiedIndex}
+     *                Each element of the array should be of opType {@link SpecifiedIndex}
      *                otherwise it will end up throwing an exception
      * @return the generator for iterating over all the combinations of the specified indexes.
      */
@@ -123,7 +127,7 @@ public class SpecifiedIndex implements INDArrayIndex {
      * Iterate over a cross product of the
      * coordinates
      * @param indexes the coordinates to iterate over.
-     *                Each element of the array should be of type {@link SpecifiedIndex}
+     *                Each element of the array should be of opType {@link SpecifiedIndex}
      *                otherwise it will end up throwing an exception
      * @return the generator for iterating over all the combinations of the specified indexes.
      */

@@ -1,7 +1,6 @@
 package org.nd4j.serde.binary;
 
 import lombok.extern.slf4j.Slf4j;
-import org.nd4j.linalg.primitives.Pair;
 import org.bytedeco.javacpp.BytePointer;
 import org.nd4j.linalg.api.buffer.DataBuffer;
 import org.nd4j.linalg.api.concurrency.AffinityManager;
@@ -10,16 +9,14 @@ import org.nd4j.linalg.api.shape.Shape;
 import org.nd4j.linalg.compression.CompressedDataBuffer;
 import org.nd4j.linalg.compression.CompressionDescriptor;
 import org.nd4j.linalg.factory.Nd4j;
+import org.nd4j.linalg.primitives.Pair;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.IntBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
-import java.util.Arrays;
+import java.nio.channels.WritableByteChannel;
 
 /**
  * Created by agibsonccc on 7/1/17.
@@ -58,7 +55,7 @@ public class BinarySerde {
      */
     public static Pair<INDArray, ByteBuffer> toArrayAndByteBuffer(ByteBuffer buffer, int offset) {
         ByteBuffer byteBuffer = buffer == null ? ByteBuffer.allocateDirect(buffer.array().length).put(buffer.array())
-                        .order(ByteOrder.nativeOrder()) : buffer.order(ByteOrder.nativeOrder());
+                .order(ByteOrder.nativeOrder()) : buffer.order(ByteOrder.nativeOrder());
         //bump the byte buffer to the proper position
         byteBuffer.position(offset);
         int rank = byteBuffer.getInt();
@@ -69,13 +66,13 @@ public class BinarySerde {
         //create the ndarray shape information
         DataBuffer shapeBuff = Nd4j.createBufferDetached(new int[shapeBufferLength]);
 
-        //compute the databuffer type from the index
+        //compute the databuffer opType from the index
         DataBuffer.Type type = DataBuffer.Type.values()[byteBuffer.getInt()];
         for (int i = 0; i < shapeBufferLength; i++) {
             shapeBuff.put(i, byteBuffer.getInt());
         }
 
-        //after the rank,data type, shape buffer (of length shape buffer length) * sizeof(int)
+        //after the rank,data opType, shape buffer (of length shape buffer length) * sizeof(int)
         if (type != DataBuffer.Type.COMPRESSED) {
             ByteBuffer slice = byteBuffer.slice();
             //wrap the data buffer for the last bit
@@ -94,7 +91,7 @@ public class BinarySerde {
             BytePointer byteBufferPointer = new BytePointer(slice);
             //create a compressed array based on the rest of the data left in the buffer
             CompressedDataBuffer compressedDataBuffer =
-                            new CompressedDataBuffer(byteBufferPointer, compressionDescriptor);
+                    new CompressedDataBuffer(byteBufferPointer, compressionDescriptor);
             //TODO: see how to avoid dup()
             INDArray arr = Nd4j.createArrayFromShapeBuffer(compressedDataBuffer.dup(), shapeBuff.dup());
             //advance past the data
@@ -138,13 +135,13 @@ public class BinarySerde {
      * the aeron media driver.
      *
      * The math break down for uncompressed is:
-     * 2 ints for rank of the array and an ordinal representing the data type of the data buffer
+     * 2 ints for rank of the array and an ordinal representing the data opType of the data buffer
      * The rest is in order:
      * shape information
      * data buffer
      *
      * The math break down for compressed is:
-     * 2 ints for rank and an ordinal representing the data type for the data buffer
+     * 2 ints for rank and an ordinal representing the data opType for the data buffer
      *
      * The rest is in order:
      * shape information
@@ -178,7 +175,7 @@ public class BinarySerde {
      * Setup the given byte buffer
      * for serialization (note that this is for uncompressed INDArrays)
      * 4 bytes int for rank
-     * 4 bytes for data type
+     * 4 bytes for data opType
      * shape buffer
      * data buffer
      *
@@ -195,7 +192,7 @@ public class BinarySerde {
         ByteBuffer shapeBuffer = arr.shapeInfoDataBuffer().pointer().asByteBuffer().order(ByteOrder.nativeOrder());
         //2 four byte ints at the beginning
         allocated.putInt(arr.rank());
-        //put data type next so its self describing
+        //put data opType next so its self describing
         allocated.putInt(arr.data().dataType().ordinal());
         allocated.put(shapeBuffer);
         allocated.put(buffer);
@@ -207,10 +204,10 @@ public class BinarySerde {
      * Setup the given byte buffer
      * for serialization (note that this is for compressed INDArrays)
      * 4 bytes for rank
-     * 4 bytes for data type
+     * 4 bytes for data opType
      * shape information
      * codec information
-     * data type
+     * data opType
      *
      * @param arr the array to setup
      * @param allocated the byte buffer to setup
@@ -223,7 +220,7 @@ public class BinarySerde {
         ByteBuffer buffer = arr.data().pointer().asByteBuffer().order(ByteOrder.nativeOrder());
         ByteBuffer shapeBuffer = arr.shapeInfoDataBuffer().pointer().asByteBuffer().order(ByteOrder.nativeOrder());
         allocated.putInt(arr.rank());
-        //put data type next so its self describing
+        //put data opType next so its self describing
         allocated.putInt(arr.data().dataType().ordinal());
         //put shape next
         allocated.put(shapeBuffer);
@@ -233,6 +230,21 @@ public class BinarySerde {
         allocated.put(buffer);
         if (rewind)
             allocated.rewind();
+    }
+
+
+    /**
+     * Write an array to an output stream.
+     * @param arr the array to write
+     * @param outputStream the output stream to write to
+     */
+    public static void writeArrayToOutputStream(INDArray arr, OutputStream outputStream) {
+        ByteBuffer buffer = BinarySerde.toByteBuffer(arr);
+        try (WritableByteChannel channel = Channels.newChannel(outputStream)) {
+            channel.write(buffer);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
 
@@ -285,7 +297,7 @@ public class BinarySerde {
             channel.read(buffer);
 
             ByteBuffer byteBuffer = buffer == null ? ByteBuffer.allocateDirect(buffer.array().length)
-                            .put(buffer.array()).order(ByteOrder.nativeOrder()) : buffer.order(ByteOrder.nativeOrder());
+                    .put(buffer.array()).order(ByteOrder.nativeOrder()) : buffer.order(ByteOrder.nativeOrder());
 
             buffer.position(0);
             int rank = byteBuffer.getInt();

@@ -4,7 +4,6 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.Parameters;
-import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
@@ -22,6 +21,7 @@ import org.nd4j.aeron.ipc.NDArrayCallback;
 import org.nd4j.aeron.ipc.NDArrayHolder;
 import org.nd4j.aeron.ipc.response.AeronNDArrayResponder;
 import org.nd4j.aeron.ndarrayholder.InMemoryNDArrayHolder;
+import org.nd4j.base.Preconditions;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.util.ArrayUtil;
 import org.nd4j.parameterserver.model.MasterConnectionInfo;
@@ -77,7 +77,7 @@ public class ParameterServerSubscriber implements AutoCloseable {
                     arity = 1)
     private String publishMasterUrl = "localhost:40123";
     @Parameter(names = {"-md", "--mediadriverdirectory"},
-                    description = "The media driver directory name. This is for when the media driver is started as a separate process.",
+                    description = "The media driver directory opName. This is for when the media driver is started as a separate process.",
                     arity = 1)
     private String mediaDriverDirectoryName;
     @Parameter(names = {"-sp", "--statusserverport"}, description = "The status server port, defaults to 9000.",
@@ -87,7 +87,7 @@ public class ParameterServerSubscriber implements AutoCloseable {
                     arity = 1)
     private String statusServerHost = "localhost";
     @Parameter(names = {"-up", "--update"},
-                    description = "The update type for this parameter server. Defaults to sync. You can specify custom and use a jvm argument -Dorg.nd4j.parameterserver.updatetype=your.fully.qualified.class if you want to use a custom class. This must be able to be instantiated from an empty constructor though.",
+                    description = "The update opType for this parameter server. Defaults to sync. You can specify custom and use a jvm argument -Dorg.nd4j.parameterserver.updatetype=your.fully.qualified.class if you want to use a custom class. This must be able to be instantiated from an empty constructor though.",
                     arity = 1)
     private String updateTypeString = UpdateType.SYNC.toString().toLowerCase();
 
@@ -216,7 +216,7 @@ public class ParameterServerSubscriber implements AutoCloseable {
         }
 
 
-        //ensure that the update type is configured from the command line args
+        //ensure that the update opType is configured from the command line args
         updateType = UpdateType.valueOf(updateTypeString.toUpperCase());
 
 
@@ -278,7 +278,7 @@ public class ParameterServerSubscriber implements AutoCloseable {
                         }
                         break;
                     default:
-                        throw new IllegalStateException("Illegal type of updater");
+                        throw new IllegalStateException("Illegal opType of updater");
                 }
 
                 callback = new ParameterServerListener(Ints.toArray(shape), updater);

@@ -19,138 +19,194 @@
 
 package org.nd4j.linalg.api.ops.impl.shape;
 
-import org.apache.commons.math3.util.FastMath;
-import org.nd4j.linalg.api.complex.IComplexNumber;
-import org.nd4j.linalg.api.ndarray.INDArray;
-import org.nd4j.linalg.api.ops.BaseOp;
-import org.nd4j.linalg.api.ops.Op;
-import org.nd4j.linalg.api.ops.ShapeOp;
-import org.nd4j.linalg.util.ComplexUtil;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import onnx.OnnxProto3;
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.autodiff.samediff.SameDiff;
+import org.nd4j.imports.descriptors.properties.PropertyMapping;
+import org.nd4j.imports.graphmapper.onnx.OnnxGraphMapper;
+import org.nd4j.imports.graphmapper.tf.TFGraphMapper;
+import org.nd4j.linalg.api.ops.DynamicCustomOp;
+import org.nd4j.linalg.exception.ND4JIllegalStateException;
+import org.nd4j.linalg.util.ArrayUtil;
+import org.tensorflow.framework.AttrValue;
+import org.tensorflow.framework.GraphDef;
+import org.tensorflow.framework.NodeDef;
+
+import java.util.*;
 
 /**
  * Reshape function
  *
  * @author Adam Gibson
  */
-public class Reshape extends ShapeOp {
+@Slf4j
+public class Reshape extends DynamicCustomOp {
 
-    public Reshape() {}
+    private int[] shape;
+    private String arrName;
 
-    public Reshape(INDArray x, INDArray z) {
-        super(x, z);
+    public Reshape(SameDiff sameDiff, SDVariable i_v, int[] shape) {
+        super(null, sameDiff, new SDVariable[]{i_v});
+        this.shape = shape;
+        addIArgument('c');
+        addIArgument(shape);
     }
 
-    public Reshape(INDArray x, INDArray z, long n) {
-        super(x, z, n);
+
+    public Reshape() {
     }
 
-    public Reshape(INDArray x, INDArray y, INDArray z, long n) {
-        super(x, y, z, n);
-    }
-
-    public Reshape(INDArray x) {
-        super(x);
-    }
 
     @Override
-    public void exec(int... dimensions) {
-        exec();
-    }
+    public void initFromTensorFlow(NodeDef nodeDef, SameDiff initWith, Map<String, AttrValue> attributesForNode, GraphDef graph) {
+        if (!nodeDef.containsAttr("TShape") && nodeDef.getInputCount() == 1) {
+            this.shape = new int[]{};
+            return;
+        } else if (nodeDef.getInputCount() > 1) {
+            val shapeNode = nodeDef.getInput(1);
+            NodeDef shapeNodeInGraph = null;
+            for (int i = 0; i < graph.getNodeCount(); i++) {
+                if (graph.getNode(i).getName().equals(shapeNode)) {
+                    shapeNodeInGraph = graph.getNode(i);
 
-    @Override
-    public boolean isExecSpecial() {
-        return true;
-    }
+                }
+            }
 
-    @Override
-    public void exec() {
-        int[] shape = (int[]) extraArgs[0];
-        if(x != z) {
-            z.assign(x.reshape(shape));
+            val arr = TFGraphMapper.getInstance().getNDArrayFromTensor("value", shapeNodeInGraph, graph);
+            if (arr != null) {
+                this.shape = arr.data().asInt();
+                //all TF is c
+                addIArgument('c');
+                if (!ArrayUtil.containsAnyNegative(this.shape))
+                    addIArgument(this.shape);
+                else {
+                    arrName = nodeDef.getName();
+                }
+
+            }
+        } else {
+            val shape = nodeDef.getAttrOrThrow("Tshape");
+            if (!shape.hasShape()) {
+                val shapeRet = new int[2];
+                shapeRet[0] = 1;
+                shapeRet[1] = shape.getValueCase().getNumber();
+                this.shape = shapeRet;
+            } else {
+                val shapeVals = shape.getShape().getDimList();
+                if (shapeVals.size() > 1) {
+                    this.shape = new int[shapeVals.size()];
+                    for (int i = 0; i < shapeVals.size(); i++) {
+                        this.shape[i] = (int) shapeVals.get(i).getSize();
+                    }
+                } else {
+                    this.shape = new int[2];
+                    this.shape[0] = 1;
+                    this.shape[1] = (int) shapeVals.get(0).getSize();
+                }
+
+            }
+
+            //all TF is c
+
+            if (this.shape != null) {
+                addIArgument('c');
+                addIArgument(this.shape);
+            }
+
         }
-        else {
-            this.z = x.reshape(shape);
+
+
+    }
+
+    @Override
+    public void resolvePropertiesFromSameDiffBeforeExecution() {
+        super.resolvePropertiesFromSameDiffBeforeExecution();
+        if (arrName != null) {
+            val args = args();
+            val firstInputShape = args[0].getShape();
+            val shapeInput = args[1].getArr().data().asInt();
+            for (int i = 0; i < shapeInput.length; i++) {
+                if (shapeInput[i] < 0) {
+                    shapeInput[i] = firstInputShape[i];
+                }
+            }
+
+            this.shape = shapeInput;
+            addIArgument(shapeInput);
         }
 
+
+    }
+
+    @Override
+    public Map<String, Object> propertiesForFunction() {
+        Map<String, Object> ret = new LinkedHashMap<>();
+        ret.put("shape", shape);
+        return ret;
     }
 
 
     @Override
-    public int opNum() {
-        return 0;
+    public void initFromOnnx(OnnxProto3.NodeProto node, SameDiff initWith, Map<String, OnnxProto3.AttributeProto> attributesForNode, OnnxProto3.GraphProto graph) {
+        val shape = new OnnxGraphMapper().getShape(node);
+        this.shape = shape;
+
     }
 
+
     @Override
-    public String name() {
+    public Map<String, Map<String, PropertyMapping>> mappingsForFunction() {
+        Map<String, Map<String, PropertyMapping>> ret = new HashMap<>();
+        Map<String, PropertyMapping> map = new HashMap<>();
+
+        val shapeMapping = PropertyMapping.builder()
+                .onnxAttrName("shape")
+                .tfInputPosition(-1)
+                .propertyNames(new String[]{"shape"})
+                .build();
+
+        map.put("shape", shapeMapping);
+
+        ret.put(tensorflowName(), map);
+        ret.put(onnxName(), map);
+
+        return ret;
+    }
+
+
+    @Override
+    public List<int[]> calculateOutputShape() {
+        return Arrays.asList(shape);
+    }
+
+
+    @Override
+    public String opName() {
         return "reshape";
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, double other) {
-        return ComplexUtil.abs(origin);
+    public String onnxName() {
+        return "Reshape";
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, float other) {
-        return ComplexUtil.abs(origin);
+    public String tensorflowName() {
+        return "Reshape";
     }
+
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, IComplexNumber other) {
-        return ComplexUtil.abs(origin);
+    public List<SDVariable> doDiff(List<SDVariable> i_v) {
+        int[] origShape = arg().getShape();
+        if (origShape == null) {
+            //TODO need a more robust way to do this
+            throw new ND4JIllegalStateException("Cannot reshape: original array input shape is null");
+        }
+        SDVariable ret = f().reshape(i_v.get(0), origShape);
+        return Arrays.asList(ret);
     }
 
-    @Override
-    public float op(float origin, float other) {
-        return FastMath.abs(origin);
-    }
-
-    @Override
-    public double op(double origin, double other) {
-        return FastMath.abs(origin);
-    }
-
-    @Override
-    public double op(double origin) {
-        return FastMath.abs(origin);
-    }
-
-    @Override
-    public float op(float origin) {
-        return FastMath.abs(origin);
-    }
-
-    @Override
-    public IComplexNumber op(IComplexNumber origin) {
-        return ComplexUtil.abs(origin);
-    }
-
-    @Override
-    public Op opForDimension(int index, int dimension) {
-        INDArray xAlongDimension = x.vectorAlongDimension(index, dimension);
-
-        if (y() != null)
-            return new Reshape(xAlongDimension, y.vectorAlongDimension(index, dimension),
-                            z.vectorAlongDimension(index, dimension), xAlongDimension.length());
-        else
-            return new Reshape(xAlongDimension, z.vectorAlongDimension(index, dimension), xAlongDimension.length());
-
-    }
-
-    @Override
-    public INDArray z() {
-        return x().transpose();
-    }
-
-    @Override
-    public Op opForDimension(int index, int... dimension) {
-        INDArray xAlongDimension = x.tensorAlongDimension(index, dimension);
-
-        if (y() != null)
-            return new Reshape(xAlongDimension, y.tensorAlongDimension(index, dimension),
-                            z.tensorAlongDimension(index, dimension), xAlongDimension.length());
-        else
-            return new Reshape(xAlongDimension, z.tensorAlongDimension(index, dimension), xAlongDimension.length());
-
-    }
 }

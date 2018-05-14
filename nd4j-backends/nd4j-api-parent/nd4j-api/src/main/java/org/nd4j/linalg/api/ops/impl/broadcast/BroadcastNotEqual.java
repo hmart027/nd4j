@@ -1,8 +1,11 @@
 package org.nd4j.linalg.api.ops.impl.broadcast;
 
-import org.nd4j.linalg.api.complex.IComplexNumber;
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.autodiff.samediff.SameDiff;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.BaseBroadcastOp;
+
+import java.util.List;
 
 public class BroadcastNotEqual extends BaseBroadcastOp {
 
@@ -12,6 +15,33 @@ public class BroadcastNotEqual extends BaseBroadcastOp {
         super(x, y, z, dimension);
     }
 
+    public BroadcastNotEqual(SameDiff sameDiff, SDVariable i_v1, SDVariable i_v2, int[] dimension) {
+        super(sameDiff, i_v1, i_v2, dimension);
+    }
+
+    public BroadcastNotEqual(SameDiff sameDiff, SDVariable i_v1, SDVariable i_v2, boolean inPlace, int[] dimension) {
+        super(sameDiff, i_v1, i_v2, inPlace, dimension);
+    }
+
+    public BroadcastNotEqual(SameDiff sameDiff) {
+        super(sameDiff);
+    }
+
+    public BroadcastNotEqual(SameDiff sameDiff, SDVariable i_v1, SDVariable i_v2, int[] dimension, Object[] extraArgs) {
+        super(sameDiff, i_v1, i_v2, dimension, extraArgs);
+    }
+
+    public BroadcastNotEqual(SameDiff sameDiff, SDVariable i_v, int[] dimension, boolean inPlace) {
+        super(sameDiff, i_v, dimension, inPlace);
+    }
+
+    public BroadcastNotEqual(SameDiff sameDiff, SDVariable i_v, int[] shape, boolean inPlace, int[] dimension, Object[] extraArgs) {
+        super(sameDiff, i_v, shape, inPlace, dimension, extraArgs);
+    }
+
+    public BroadcastNotEqual(SameDiff sameDiff, SDVariable i_v, int[] dimension, Object[] extraArgs) {
+        super(sameDiff, i_v, dimension, extraArgs);
+    }
 
     @Override
     public int opNum() {
@@ -19,49 +49,23 @@ public class BroadcastNotEqual extends BaseBroadcastOp {
     }
 
     @Override
-    public String name() {
+    public String opName() {
         return "broadcast_notequal";
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, double other) {
-        throw new UnsupportedOperationException();
+    public String onnxName() {
+        return "Not";
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, float other) {
-        throw new UnsupportedOperationException();
+    public String tensorflowName() {
+        return "logical_not";
     }
+
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, IComplexNumber other) {
-        throw new UnsupportedOperationException();
+    public List<SDVariable> doDiff(List<SDVariable> f1) {
+        return null;
     }
-
-    @Override
-    public float op(float origin, float other) {
-        return origin != other ? 1.0f : 0.0f;
-    }
-
-    @Override
-    public double op(double origin, double other) {
-        return origin != other ? 1.0f : 0.0f;
-    }
-
-    @Override
-    public double op(double origin) {
-        return 1;
-    }
-
-    @Override
-    public float op(float origin) {
-        return 1;
-    }
-
-    @Override
-    public IComplexNumber op(IComplexNumber origin) {
-        return origin;
-    }
-
-
 }

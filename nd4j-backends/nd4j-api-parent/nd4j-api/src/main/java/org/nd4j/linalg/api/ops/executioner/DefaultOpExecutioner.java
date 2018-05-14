@@ -20,10 +20,12 @@
 package org.nd4j.linalg.api.ops.executioner;
 
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.bytedeco.javacpp.Pointer;
 import org.nd4j.linalg.api.buffer.DataBuffer;
 import org.nd4j.linalg.api.complex.IComplexNDArray;
-import org.nd4j.linalg.api.complex.IComplexNumber;
 import org.nd4j.linalg.api.environment.Nd4jEnvironment;
+import org.nd4j.linalg.api.memory.MemoryWorkspace;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.*;
 import org.nd4j.linalg.api.ops.aggregates.Aggregate;
@@ -33,9 +35,9 @@ import org.nd4j.linalg.api.rng.Random;
 import org.nd4j.linalg.cache.TADManager;
 import org.nd4j.linalg.exception.ND4JIllegalStateException;
 import org.nd4j.linalg.factory.Nd4j;
-import org.nd4j.linalg.primitives.ImmutablePair;
 import org.nd4j.linalg.profiler.OpProfiler;
-import org.nd4j.linalg.util.ArrayUtil;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -50,7 +52,9 @@ import java.util.Properties;
 @Slf4j
 public class DefaultOpExecutioner implements OpExecutioner {
 
-    protected ProfilingMode profilingMode = ProfilingMode.DISABLED;
+    private static final String SCOPE_PANIC_MSG = "For more details, see the ND4J User Guide: nd4j.org/userguide#workspaces-panic";
+
+    protected ProfilingMode profilingMode = ProfilingMode.SCOPE_PANIC;
     protected ExecutionMode executionMode = ExecutionMode.JAVA;
 
     public DefaultOpExecutioner() {}
@@ -75,7 +79,7 @@ public class DefaultOpExecutioner implements OpExecutioner {
     }
 
     /**
-     * This method checks if any Op operand has data type of INT, and throws exception if any.
+     * This method checks if any Op operand has data opType of INT, and throws exception if any.
      *
      * @param op
      */
@@ -120,7 +124,7 @@ public class DefaultOpExecutioner implements OpExecutioner {
             return Nd4j.scalar(execAndReturn((IndexAccumulation) op).getFinalResult());
         }
 
-        throw new IllegalArgumentException("Illegal type of op: " + op.getClass());
+        throw new IllegalArgumentException("Illegal opType of op: " + op.getClass());
     }
 
     @Override
@@ -286,52 +290,11 @@ public class DefaultOpExecutioner implements OpExecutioner {
             throw new UnsupportedOperationException(
                             "Executing transform ops along a dimension should be done via exec special");
         }
-        throw new UnsupportedOperationException("Unknown op type");
+        throw new UnsupportedOperationException("Unknown op opType");
     }
 
     @Override
     public INDArray exec(Accumulation op, int... dimension) {
-        //do op along all dimensions
-        if (dimension.length == op.x().rank())
-            dimension = new int[] {Integer.MAX_VALUE};
-
-        if (op.isPassThrough()) {
-            op.exec(dimension);
-            return op.z();
-        }
-
-
-        if (dimension[0] == Integer.MAX_VALUE) {
-            if (op.x() instanceof IComplexNDArray)
-                return Nd4j.scalar(execAndReturn(op).getFinalResultComplex());
-            return Nd4j.scalar(execAndReturn(op).getFinalResult().doubleValue());
-        }
-
-        if (op instanceof IComplexNDArray) {
-            int[] retShape = ArrayUtil.removeIndex(op.x().shape(), dimension);
-            //ensure vector is proper shape
-            if (retShape.length == 1) {
-                if (dimension[0] == 0)
-                    retShape = new int[] {1, retShape[0]};
-                else
-                    retShape = new int[] {retShape[0], 1};
-            } else if (retShape.length == 0) {
-                retShape = new int[] {1, 1};
-            }
-
-            IComplexNDArray ret = Nd4j.createComplex(retShape);
-            for (int i = 0; i < op.x().tensorssAlongDimension(dimension); i++) {
-                Op op2 = op.opForDimension(i, dimension);
-                IComplexNumber result = execAndReturn((Accumulation) op2).getFinalResultComplex();
-                ret.putScalar(i, result);
-            }
-
-            // FIXME: this is wrong, it breaks shapeInfo immutability
-            if (ret.ordering() == 'c')
-                ret.setStride(ArrayUtil.reverseCopy(ret.stride()));
-
-            return ret;
-        }
 
         throw new UnsupportedOperationException("Java computation no longer supported");
     }
@@ -462,6 +425,57 @@ public class DefaultOpExecutioner implements OpExecutioner {
         return System.nanoTime();
     }
 
+    protected void checkWorkspace(String opName, INDArray array) {
+        if (array.isAttached()) {
+            val ws = array.data().getParentWorkspace();
+
+            if (ws.getWorkspaceType() != MemoryWorkspace.Type.CIRCULAR) {
+
+                if (!ws.isScopeActive()) {
+                    throw new ND4JIllegalStateException("Op [" + opName + "] X argument uses leaked workspace pointer from workspace ["
+                            + ws.getId() + "]\nAll open workspaces: " + allOpenWorkspaces() + "\n" + SCOPE_PANIC_MSG);
+                }
+
+                if (ws.getGenerationId() != array.data().getGenerationId())
+                    throw new ND4JIllegalStateException("Op [" + opName + "] X argument uses outdated workspace pointer from workspace ["
+                            + ws.getId() + "]\nAll open workspaces: " + allOpenWorkspaces() + "\n" + SCOPE_PANIC_MSG);
+            }
+        }
+    }
+
+    protected void checkForWorkspaces(CustomOp op) {
+        for (val input: op.inputArguments())
+            checkWorkspace(op.opName(), input);
+
+        for (val output: op.outputArguments())
+            checkWorkspace(op.opName(), output);
+    }
+
+    protected void checkForWorkspaces(Op op) {
+        val x = op.x();
+        if (x != null)
+            checkWorkspace(op.opName(), x);
+
+        val y = op.y();
+        if (y != null)
+            checkWorkspace(op.opName(), y);
+
+        val z = op.z();
+        if (z != null)
+            checkWorkspace(op.opName(), z);
+    }
+
+    private static List<String> allOpenWorkspaces(){
+        List<MemoryWorkspace> l = Nd4j.getWorkspaceManager().getAllWorkspacesForCurrentThread();
+        List<String> workspaces = new ArrayList<>(l.size());
+        for( MemoryWorkspace ws : l){
+            if(ws.isScopeActive()) {
+                workspaces.add(ws.getId());
+            }
+        }
+        return workspaces;
+    }
+
     public long profilingHookIn(Op op) {
         switch (profilingMode) {
             case ALL:
@@ -472,6 +486,30 @@ public class DefaultOpExecutioner implements OpExecutioner {
             case OPERATIONS:
                 OpProfiler.getInstance().processOpCall(op);
                 break;
+            case SCOPE_PANIC:
+                checkForWorkspaces(op);
+                return 0L;
+            case DISABLED:
+            default:
+                return 0L;
+        }
+
+        return System.nanoTime();
+    }
+
+    public long profilingHookIn(CustomOp op) {
+        switch (profilingMode) {
+            case ALL:
+                OpProfiler.getInstance().processOpCall(op);
+                break;
+            case METHODS:
+                break;
+            case OPERATIONS:
+                OpProfiler.getInstance().processOpCall(op);
+                break;
+            case SCOPE_PANIC:
+                checkForWorkspaces(op);
+                return 0L;
             case DISABLED:
             default:
                 return 0L;
@@ -481,6 +519,35 @@ public class DefaultOpExecutioner implements OpExecutioner {
     }
 
     public void profilingHookOut(Op op, long timeStart) {
+        switch (profilingMode) {
+            case ALL:
+                OpProfiler.getInstance().processStackCall(op, timeStart);
+                OpProfiler.getInstance().timeOpCall(op, timeStart);
+                break;
+            case METHODS:
+                OpProfiler.getInstance().processStackCall(op, timeStart);
+                break;
+            case OPERATIONS:
+                OpProfiler.getInstance().timeOpCall(op, timeStart);
+                break;
+            case NAN_PANIC:
+                OpExecutionerUtil.checkForNaN(op);
+                break;
+            case INF_PANIC:
+                OpExecutionerUtil.checkForInf(op);
+                break;
+            case ANY_PANIC:
+                OpExecutionerUtil.checkForNaN(op);
+                OpExecutionerUtil.checkForInf(op);
+                break;
+            case DISABLED:
+            default:
+                break;
+        }
+    }
+
+
+    public void profilingHookOut(CustomOp op, long timeStart) {
         switch (profilingMode) {
             case ALL:
                 OpProfiler.getInstance().processStackCall(op, timeStart);
@@ -543,10 +610,6 @@ public class DefaultOpExecutioner implements OpExecutioner {
             throw new ND4JIllegalStateException("op.Y dataType is [" + op.y().data().dataType()
                             + "] instead of expected [" + expectedType + "]");
 
-        DataBuffer extraz = op.extraArgsDataBuff();
-        if (extraz != null && extraz.dataType() != expectedType)
-            throw new ND4JIllegalStateException("op.Extras dataType is [" + extraz.dataType()
-                            + "] instead of expected [" + expectedType + "]");
 
     }
 
@@ -650,5 +713,64 @@ public class DefaultOpExecutioner implements OpExecutioner {
     @Override
     public void exec(CustomOp op) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<int[]> calculateOutputShape(CustomOp op) {
+        throw new UnsupportedOperationException();
+    }
+
+
+    @Override
+    public void enableDebugMode(boolean reallyEnable) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void enableVerboseMode(boolean reallyEnable) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void registerGraph(long id, Pointer graph) {
+        throw new UnsupportedOperationException("Not yet implemented");
+    }
+
+    @Override
+    public Map<String, INDArray> executeGraph(long id, Map<String, INDArray> map) {
+        throw new UnsupportedOperationException("Not yet implemented");
+    }
+
+    @Override
+    public void forgetGraph(long id) {
+        throw new UnsupportedOperationException("Not yet implemented");
+    }
+
+
+    /**
+     * This method allows to set desired number of elements per thread, for performance optimization purposes.
+     * I.e. if array contains 2048 elements, and threshold is set to 1024, 2 threads will be used for given op execution.
+     * <p>
+     * Default value: 1024
+     *
+     * @param threshold
+     */
+    @Override
+    public void setElementsThreshold(int threshold) {
+        // no-op
+    }
+
+    /**
+     * This method allows to set desired number of sub-arrays per thread, for performance optimization purposes.
+     * I.e. if matrix has shape of 64 x 128, and threshold is set to 8, each thread will be processing 8 sub-arrays (sure, if you have 8 core cpu).
+     * If your cpu has, say, 4, cores, only 4 threads will be spawned, and each will process 16 sub-arrays
+     * <p>
+     * Default value: 8
+     *
+     * @param threshold
+     */
+    @Override
+    public void setTadThreshold(int threshold) {
+        // no-op
     }
 }

@@ -19,203 +19,220 @@
 
 package org.nd4j.linalg.api.ops.impl.accum;
 
+import lombok.val;
+import onnx.OnnxProto3;
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.autodiff.samediff.SameDiff;
+import org.nd4j.imports.descriptors.properties.PropertyMapping;
 import org.nd4j.linalg.api.blas.params.MMulTranspose;
-import org.nd4j.linalg.api.complex.IComplexNumber;
 import org.nd4j.linalg.api.ndarray.INDArray;
-import org.nd4j.linalg.api.ops.BaseAccumulation;
-import org.nd4j.linalg.api.ops.Op;
+import org.nd4j.linalg.api.ops.DynamicCustomOp;
+import org.nd4j.linalg.api.shape.Shape;
+import org.nd4j.linalg.exception.ND4JIllegalStateException;
+import org.nd4j.linalg.util.ArrayUtil;
+import org.tensorflow.framework.AttrValue;
+import org.tensorflow.framework.GraphDef;
+import org.tensorflow.framework.NodeDef;
+
+import java.util.*;
 
 /**
  * Matrix multiplication/dot product
  *
  * @author Adam Gibson
  */
-public class Mmul extends BaseAccumulation {
+public class Mmul extends DynamicCustomOp {
 
-    private MMulTranspose mMulTranspose;
+    protected MMulTranspose mMulTranspose;
+
+    /**
+     *
+     * @param sameDiff
+     * @param i_v1
+     * @param i_v2
+     * @param mMulTranspose
+     */
+    public Mmul(SameDiff sameDiff,
+                SDVariable i_v1,
+                SDVariable i_v2,
+                MMulTranspose mMulTranspose) {
+        super(null,sameDiff,new SDVariable[]{i_v1,i_v2});
+        this.mMulTranspose = mMulTranspose;
+        addIArgument(ArrayUtil.fromBoolean(mMulTranspose.isTransposeA()), ArrayUtil.fromBoolean(mMulTranspose.isTransposeB()));
+    }
+
+
+    /**
+     *
+     * @param sameDiff
+     * @param i_v1
+     * @param i_v2
+     */
+    public Mmul(SameDiff sameDiff,
+                SDVariable i_v1,
+                SDVariable i_v2) {
+        this(sameDiff,i_v1,i_v2,MMulTranspose.allFalse());
+    }
+
+    /**
+     *
+     * @param x
+     * @param y
+     * @param z
+     */
+    public Mmul(INDArray x,
+                INDArray y,
+                INDArray z,
+                MMulTranspose mMulTranspose) {
+        super(null, new INDArray[]{x, y}, z == null ? null : new INDArray[]{z});
+        if (mMulTranspose != null) {
+          this.mMulTranspose = mMulTranspose;
+          addIArgument(ArrayUtil.fromBoolean(mMulTranspose.isTransposeA()),
+                       ArrayUtil.fromBoolean(mMulTranspose.isTransposeB()));
+        }
+    }
+
 
     public Mmul() {}
 
 
-    public Mmul(INDArray x,
-                INDArray y,
-                INDArray z,
-                MMulTranspose mMulTranspose) {
-        this(x,y,z,x.lengthLong(),mMulTranspose);
+    @Override
+    public List<int[]> calculateOutputShape() {
+        if(mMulTranspose == null)
+            mMulTranspose = MMulTranspose.allFalse();
+        List<int[]> ret = new ArrayList<>(1);
+        int[] aShape = mMulTranspose.isTransposeA() ? ArrayUtil.reverseCopy(larg().getShape()) : larg().getShape();
+        int[] bShape = mMulTranspose.isTransposeB() ? ArrayUtil.reverseCopy(rarg().getShape()) : rarg().getShape();
+        if(Shape.isPlaceholderShape(aShape) || Shape.isPlaceholderShape(bShape))
+            return Collections.emptyList();
+
+        if(aShape != null && bShape != null) {
+            val shape =  Shape.getMatrixMultiplyShape(aShape,bShape);
+            ret.add(shape);
+        }
+        if(!ret.isEmpty()) {
+            for(int i = 0; i < ret.get(0).length; i++) {
+                if(ret.get(0)[i] < 1)
+                    throw new ND4JIllegalStateException("Invalid shape computed at index " +  i);
+            }
+        }
+        return ret;
     }
 
-    public Mmul(INDArray x,
-                INDArray y,
-                INDArray z,
-                long n,
-                MMulTranspose mMulTranspose) {
-        super(x, y, z, n);
-        this.mMulTranspose = mMulTranspose;
-    }
 
-    public Mmul(INDArray x, INDArray y, INDArray z, long n) {
-        this(x,y,z,n,MMulTranspose.allFalse());
-    }
-
-    public Mmul(INDArray x, INDArray y, INDArray z) {
-        this(x,y,z,x.lengthLong());
-    }
-
-
-
-    public Mmul(INDArray x, INDArray y) {
-        super(x, y);
+    @Override
+    public String onnxName() {
+        return "MatMul";
     }
 
     @Override
-    public int opNum() {
-        return 3;
+    public String tensorflowName() {
+        return "MatMul";
     }
 
+
+
     @Override
-    public String name() {
+    public String opName() {
         return "mmul";
     }
 
+
+
     @Override
-    public Op opForDimension(int index, int dimension) {
-        throw new UnsupportedOperationException();
-
-
+    public void initFromTensorFlow(NodeDef nodeDef, SameDiff initWith, Map<String, AttrValue> attributesForNode, GraphDef graph) {
+        super.initFromTensorFlow(nodeDef, initWith, attributesForNode, graph);
+        val isTransposeA = attributesForNode.get("transpose_a").getB();
+        val isTransposeB = attributesForNode.get("transpose_b").getB();
+        MMulTranspose mMulTranspose = MMulTranspose.builder()
+                .transposeA(isTransposeA).transposeB(isTransposeB)
+                .build();
+        this.mMulTranspose = mMulTranspose;
+        val args = args();
+        for(val arg : args) {
+            if(sameDiff.isPlaceHolder(arg.getVarName()) || arg.getShape() == null) {
+                sameDiff.addPropertyToResolve(this,arg.getVarName());
+            }
+        }
     }
 
     @Override
-    public long n() {
-        return 0;
+    public void initFromOnnx(OnnxProto3.NodeProto node, SameDiff initWith, Map<String, OnnxProto3.AttributeProto> attributesForNode, OnnxProto3.GraphProto graph) {
+        val isTransposeA = !attributesForNode.containsKey("transA") ? false : attributesForNode.get("transA").getI() > 0;
+        val isTransposeB = !attributesForNode.containsKey("transB") ? false : attributesForNode.get("transB").getI() > 0;
+        MMulTranspose mMulTranspose = MMulTranspose.builder()
+                .transposeA(isTransposeA).transposeB(isTransposeB)
+                .build();
+        this.mMulTranspose = mMulTranspose;
+    }
+
+
+
+
+
+    @Override
+    public List<SDVariable> doDiff(List<SDVariable> i_v1) {
+        List<SDVariable> ret = new ArrayList<>();
+        SDVariable setup = sameDiff.setupFunction(i_v1.get(0));
+        SDVariable gradWrtX = sameDiff.setupFunction(f().reshape(f().mmul(setup,rarg(),
+                MMulTranspose.builder()
+                        .transposeB(!mMulTranspose.isTransposeB())
+                        .transposeResult(mMulTranspose.isTransposeA())
+                        .build()),larg().getShape()));
+
+        SDVariable gradWrtY = sameDiff.setupFunction(f().reshape(f().mmul(larg(),setup,
+                MMulTranspose.builder()
+                        .transposeA(!mMulTranspose.isTransposeA())
+                        .transposeResult(mMulTranspose.isTransposeB())
+                        .build()),rarg().getShape()));
+
+        ret.add(gradWrtX);
+        ret.add(gradWrtY);
+        return ret;
+    }
+
+
+    @Override
+    public Map<String, Map<String, PropertyMapping>> mappingsForFunction() {
+        Map<String,Map<String,PropertyMapping>> ret = new HashMap<>();
+        Map<String,PropertyMapping> map = new HashMap<>();
+
+        val transposeA = PropertyMapping.builder()
+                .onnxAttrName("transA")
+                .tfAttrName("transpose_a")
+                .propertyNames(new String[]{"transposeA"})
+                .build();
+
+        val transposeB = PropertyMapping.builder()
+                .onnxAttrName("transB")
+                .tfAttrName("transpose_b")
+                .propertyNames(new String[]{"transposeB"})
+                .build();
+
+        map.put("transposeA",transposeA);
+        map.put("transposeB",transposeB);
+
+        ret.put(tensorflowName(),map);
+        ret.put(onnxName(),map);
+
+        return ret;
     }
 
     @Override
-    public boolean isPassThrough() {
-        return true;
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Mmul mmul = (Mmul) o;
+
+        return mMulTranspose != null ? mMulTranspose.equals(mmul.mMulTranspose) : mmul.mMulTranspose == null;
     }
 
     @Override
-    public Op opForDimension(int index, int... dimension) {
-        throw new UnsupportedOperationException();
-
-    }
-
-    @Override
-    public IComplexNumber op(IComplexNumber origin, double other) {
-        numProcessed++;
-        return origin.mul(other);
-    }
-
-    @Override
-    public IComplexNumber op(IComplexNumber origin, float other) {
-        numProcessed++;
-        return origin.mul(other);
-    }
-
-    @Override
-    public IComplexNumber op(IComplexNumber origin, IComplexNumber other) {
-        numProcessed++;
-        return origin.mul(other);
-    }
-
-    @Override
-    public float op(float origin, float other) {
-        numProcessed++;
-        return origin * other;
-    }
-
-    @Override
-    public double op(double origin, double other) {
-        numProcessed++;
-        return origin * other;
-    }
-
-    @Override
-    public double op(double origin) {
-        numProcessed++;
-        return origin;
-    }
-
-    @Override
-    public float op(float origin) {
-        return origin;
-    }
-
-    @Override
-    public IComplexNumber op(IComplexNumber origin) {
-        return origin;
-    }
-
-    @Override
-    public double update(double accum, double x) {
-        return accum + x;
-    }
-
-    @Override
-    public double update(double accum, double x, double y) {
-        return accum + x * y;
-    }
-
-    @Override
-    public float update(float accum, float x) {
-        return accum + x;
-    }
-
-    @Override
-    public float update(float accum, float x, float y) {
-        return accum + x * y;
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, double x) {
-        return accum.add(x);
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, double x, double y) {
-        return accum.add(x * y);
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, IComplexNumber x) {
-        return accum.add(x);
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, IComplexNumber x, IComplexNumber y) {
-        return accum.add(x.mul(y));
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, IComplexNumber x, double y) {
-        return accum.add(x.mul(y));
-    }
-
-    @Override
-    public double combineSubResults(double first, double second) {
-        return first + second;
-    }
-
-    @Override
-    public float combineSubResults(float first, float second) {
-        return first + second;
-    }
-
-    @Override
-    public IComplexNumber combineSubResults(IComplexNumber first, IComplexNumber second) {
-        return first.add(second);
-    }
-
-    @Override
-    public boolean isExecSpecial() {
-        return true;
-    }
-
-    @Override
-    public void exec() {
-        if(this.z != null)
-            x.mmul(y,z,mMulTranspose);
-        else
-            this.z = x.mmul(y,mMulTranspose);
+    public int hashCode() {
+        int result = super.hashCode();
+        result = 31 * result + (mMulTranspose != null ? mMulTranspose.hashCode() : 0);
+        return result;
     }
 }
+

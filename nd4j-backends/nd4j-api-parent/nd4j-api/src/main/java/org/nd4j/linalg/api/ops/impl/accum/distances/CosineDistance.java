@@ -19,13 +19,18 @@
 
 package org.nd4j.linalg.api.ops.impl.accum.distances;
 
-import org.nd4j.linalg.api.complex.IComplexNumber;
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.autodiff.samediff.SameDiff;
+import org.nd4j.imports.NoOpNameFoundException;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.BaseAccumulation;
 import org.nd4j.linalg.api.ops.Op;
 import org.nd4j.linalg.api.ops.executioner.OpExecutioner;
+import org.nd4j.linalg.api.shape.Shape;
 import org.nd4j.linalg.factory.Nd4j;
-import org.nd4j.linalg.util.ArrayUtil;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Cosine distance
@@ -36,8 +41,14 @@ import org.nd4j.linalg.util.ArrayUtil;
  * @author raver119@gmail.com
  */
 public class CosineDistance extends BaseAccumulation {
-    private Number constantNormalizedByNorm2X, constantNormalizedByNorm2Y;
 
+    public CosineDistance(SameDiff sameDiff, SDVariable i_v, int[] dimensions, Number constantNormalizedByNorm2X, Number constantNormalizedByNorm2Y) {
+        super(sameDiff, i_v, dimensions);
+    }
+
+    public CosineDistance(SameDiff sameDiff, SDVariable i_v, SDVariable i_v2, int... dimensions) {
+        super(sameDiff, i_v, i_v2, dimensions);
+    }
 
     public CosineDistance() {
         passThrough = true;
@@ -77,57 +88,22 @@ public class CosineDistance extends BaseAccumulation {
 
     public CosineDistance(INDArray x, INDArray y, INDArray z, boolean allDistances) {
         this(x, y, z, x.lengthLong());
-        isComplex = allDistances;
+        this.isComplex = allDistances;
     }
 
     public CosineDistance(INDArray x, INDArray y, boolean allDistances) {
         this(x, y);
-        isComplex = allDistances;
+        this.isComplex = allDistances;
     }
 
     @Override
-    public double update(double accum, double x) {
-        return accum + x;
+    public Type opType() {
+        return Type.REDUCE3;
     }
 
     @Override
-    public double update(double accum, double x, double y) {
-        return accum + x * y;
-    }
-
-    @Override
-    public float update(float accum, float x) {
-        return accum + x;
-    }
-
-    @Override
-    public float update(float accum, float x, float y) {
-        return accum + x * y;
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, double x) {
-        return accum.add(x);
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, double x, double y) {
-        return accum.add(x * y);
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, IComplexNumber x) {
-        return accum.add(x);
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, IComplexNumber x, IComplexNumber y) {
-        return accum.add(x.mul(y));
-    }
-
-    @Override
-    public IComplexNumber update(IComplexNumber accum, IComplexNumber x, double y) {
-        return accum.add(x.mul(y));
+    public Type getOpType() {
+        return opType();
     }
 
     @Override
@@ -136,119 +112,31 @@ public class CosineDistance extends BaseAccumulation {
     }
 
     @Override
-    public String name() {
+    public String opName() {
         return "cosinedistance";
     }
 
+
+
     @Override
-    public IComplexNumber op(IComplexNumber origin, double other) {
-        numProcessed++;
-        return origin.mul(other);
+    public List<SDVariable> doDiff(List<SDVariable> i_v1) {
+        //Cosine distance = 1 - cosine similarity
+        //Therefore: just need to negate gradients from cosine similarity...
+
+        List<SDVariable> diff = CosineSimilarity.doDiff(sameDiff, f(), larg(), rarg(), i_v1.get(0), dimensions);
+        return Arrays.asList(f().neg(diff.get(0)), f().neg(diff.get(1)));
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, float other) {
-        numProcessed++;
-        return origin.mul(other);
-    }
-
-    @Override
-    public IComplexNumber op(IComplexNumber origin, IComplexNumber other) {
-        numProcessed++;
-        return origin.mul(other);
-    }
-
-    @Override
-    public float op(float origin, float other) {
-        numProcessed++;
-        return (origin * other);
-    }
-
-    @Override
-    public double op(double origin, double other) {
-        numProcessed++;
-        return origin * other;
+    public String onnxName() {
+        throw new NoOpNameFoundException("No onnx op opName found for " +  opName());
     }
 
 
     @Override
-    public Op opForDimension(int index, int dimension) {
-        INDArray xAlongDimension = x.vectorAlongDimension(index, dimension);
-        CosineDistance ret;
-        if (y() != null)
-            ret = new CosineDistance(xAlongDimension, y.vectorAlongDimension(index, dimension),
-                            xAlongDimension.length());
-        else
-            ret = new CosineDistance(x.vectorAlongDimension(index, dimension));
-        ret.setApplyFinalTransform(applyFinalTransform());
-        return ret;
-
+    public String tensorflowName() {
+        return "cosine_distance";
     }
 
-    @Override
-    public Op opForDimension(int index, int... dimension) {
-        INDArray xForDimension = x.tensorAlongDimension(index, dimension);
-        CosineDistance ret;
-        if (y() != null)
-            ret = new CosineDistance(xForDimension, y.tensorAlongDimension(index, dimension), xForDimension.length());
-        else
-            ret = new CosineDistance(x.tensorAlongDimension(index, dimension));
-        ret.setApplyFinalTransform(applyFinalTransform());
-        return ret;
-    }
 
-    @Override
-    public void exec() {
-        this.constantNormalizedByNorm2X = x.norm2Number();
-        this.constantNormalizedByNorm2Y = y.norm2Number();
-        this.extraArgs = new Object[] {0.0, constantNormalizedByNorm2X, constantNormalizedByNorm2Y};
-        double dot = Nd4j.getBlasWrapper().dot(x, y);
-        this.finalResult = dot / (constantNormalizedByNorm2X.doubleValue() * constantNormalizedByNorm2Y.doubleValue());
-    }
-
-    @Override
-    public void exec(int... dimension) {
-        int[] retShape = ArrayUtil.removeIndex(x.shape(), dimension);
-        int nOps = x.tensorssAlongDimension(dimension);
-        z = Nd4j.create(retShape);
-        for (int i = 0; i < nOps; i++) {
-            double d = Nd4j.getExecutioner().execAndReturn((CosineDistance) opForDimension(i, dimension))
-                            .getFinalResult().doubleValue();
-            z.putScalar(i, d);
-        }
-    }
-
-    @Override
-    public double getAndSetFinalResult(double accum) {
-        if (applyFinalTransform()) {
-            double d = accum / (constantNormalizedByNorm2X.doubleValue() * constantNormalizedByNorm2Y.doubleValue());
-            this.finalResult = d;
-            return d;
-        } else {
-            return accum;
-        }
-
-    }
-
-    @Override
-    public float getAndSetFinalResult(float accum) {
-        return (float) getAndSetFinalResult((double) accum);
-    }
-
-    @Override
-    public IComplexNumber getAndSetFinalResult(IComplexNumber accum) {
-        finalResultComplex = Nd4j.createComplexNumber(accum.realComponent().doubleValue()
-                        / (constantNormalizedByNorm2X.doubleValue() * constantNormalizedByNorm2Y.doubleValue()), 0);
-        return finalResultComplex;
-    }
-
-    @Override
-    public double calculateFinalResult(double accum, long n) {
-        throw new UnsupportedOperationException("Not supported for passthrough op");
-    }
-
-    @Override
-    public float calculateFinalResult(float accum, long n) {
-        throw new UnsupportedOperationException("Not supported for passthrough op");
-    }
 }

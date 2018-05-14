@@ -1,15 +1,25 @@
 package org.nd4j.linalg.api.ops.impl.transforms.gradient;
 
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.autodiff.samediff.SameDiff;
+import org.nd4j.imports.NoOpNameFoundException;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.BaseGradientOp;
-import org.nd4j.linalg.api.ops.Op;
-import org.nd4j.linalg.api.ops.impl.transforms.Sigmoid;
-import org.nd4j.linalg.factory.Nd4j;
+
+import java.util.List;
 
 /**
  *
  */
 public class GradientBackwardsMarker extends BaseGradientOp  {
+    public GradientBackwardsMarker(SameDiff sameDiff, SDVariable i_v1, SDVariable i_v2) {
+        super(sameDiff, i_v1, i_v2);
+    }
+
+    public GradientBackwardsMarker(SameDiff sameDiff, SDVariable i_v1, SDVariable i_v2, boolean inPlace) {
+        super(sameDiff, i_v1, i_v2, inPlace);
+    }
+
     public GradientBackwardsMarker(INDArray x, INDArray z) {
         super(x, z);
     }
@@ -40,56 +50,25 @@ public class GradientBackwardsMarker extends BaseGradientOp  {
     }
 
     /**
-     * The name of this operation
+     * The opName of this operation
      *
-     * @return the name of this operation
+     * @return the opName of this operation
      */
     @Override
-    public String name() {
+    public String opName() {
         return "gradientbackwards";
     }
 
-
-
-    /**
-     * A copy of this operation for a particular dimension of the input
-     *
-     * @param index     the index of the op to iterate over
-     * @param dimension the dimension to ge the input for
-     * @return the operation for that dimension
-     */
     @Override
-    public Op opForDimension(int index, int dimension) {
-        INDArray xAlongDimension = x.vectorAlongDimension(index, dimension);
-
-        if (y() != null)
-            return new org.nd4j.linalg.api.ops.impl.transforms.SoftMaxDerivative(x.vectorAlongDimension(index, dimension),
-                    y.vectorAlongDimension(index, dimension), z.vectorAlongDimension(index, dimension),
-                    xAlongDimension.length());
-        else
-            return new org.nd4j.linalg.api.ops.impl.transforms.SoftMaxDerivative(x.vectorAlongDimension(index, dimension),
-                    z.vectorAlongDimension(index, dimension), xAlongDimension.length());
+    public String onnxName() {
+        throw new NoOpNameFoundException("No onnx op opName found for " +  opName());
     }
 
-    /**
-     * A copy of this operation for a particular dimension of the input
-     *
-     * @param index     the index of the op to iterate over
-     * @param dimension the dimension to ge the input for
-     * @return the operation for that dimension
-     */
     @Override
-    public Op opForDimension(int index, int... dimension) {
-        INDArray xAlongDimension = x.tensorAlongDimension(index, dimension);
-
-        if (y() != null)
-            return new org.nd4j.linalg.api.ops.impl.transforms.SoftMaxDerivative(x.tensorAlongDimension(index, dimension),
-                    y.tensorAlongDimension(index, dimension), z.tensorAlongDimension(index, dimension),
-                    xAlongDimension.length());
-        else
-            return new org.nd4j.linalg.api.ops.impl.transforms.SoftMaxDerivative(x.tensorAlongDimension(index, dimension),
-                    z.tensorAlongDimension(index, dimension), xAlongDimension.length());
+    public String tensorflowName() {
+        throw new NoOpNameFoundException("No tensorflow op opName found for " +  opName());
     }
+
 
     @Override
     public void exec() {
@@ -101,4 +80,12 @@ public class GradientBackwardsMarker extends BaseGradientOp  {
     public void exec(int... dimensions) {
         super.exec(dimensions);
     }
+
+
+
+    @Override
+    public List<SDVariable> doDiff(List<SDVariable> i_v) {
+        throw new UnsupportedOperationException();
+    }
+
 }

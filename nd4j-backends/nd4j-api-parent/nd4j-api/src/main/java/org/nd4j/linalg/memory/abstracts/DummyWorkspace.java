@@ -48,6 +48,11 @@ public class DummyWorkspace implements MemoryWorkspace {
         return 0;
     }
 
+    @Override
+    public Type getWorkspaceType() {
+        return Type.DUMMY;
+    }
+
     /**
      * This method does allocation from a given Workspace
      *
@@ -73,6 +78,11 @@ public class DummyWorkspace implements MemoryWorkspace {
     @Override
     public PagedPointer alloc(long requiredMemory, MemoryKind kind, DataBuffer.Type dataType, boolean initialize) {
         throw new UnsupportedOperationException("DummyWorkspace shouldn't be used for allocation");
+    }
+
+    @Override
+    public long getGenerationId() {
+        return 0L;
     }
 
     /**
@@ -222,5 +232,10 @@ public class DummyWorkspace implements MemoryWorkspace {
     @Override
     public MemoryWorkspace tagOutOfScopeUse() {
         return this;
+    }
+
+    @Override
+    public void setPreviousWorkspace(MemoryWorkspace memoryWorkspace) {
+        parentWorkspace = memoryWorkspace;
     }
 }

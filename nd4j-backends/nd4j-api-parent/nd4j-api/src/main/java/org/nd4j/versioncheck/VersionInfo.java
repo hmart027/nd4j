@@ -4,8 +4,13 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.apache.commons.io.FilenameUtils;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
 import java.util.Properties;
 
 /**
@@ -31,15 +36,15 @@ public class VersionInfo {
     private String commitIdAbbrev; // =${git.commit.id.abbrev}
     private String describe; // =${git.commit.id.describe}
     private String describeShort; // =${git.commit.id.describe-short}
-    private String commitUserName; // =${git.commit.user.name}
+    private String commitUserName; // =${git.commit.user.opName}
     private String commitUserEmail; // =${git.commit.user.email}
     private String commitMessageFull; // =${git.commit.message.full}
     private String commitMessageShort; // =${git.commit.message.short}
     private String commitTime; // =${git.commit.time}
-    private String closestTagName; // =${git.closest.tag.name}
+    private String closestTagName; // =${git.closest.tag.opName}
     private String closestTagCommitCount; // =${git.closest.tag.commit.count}
 
-    private String buildUserName; // =${git.build.user.name}
+    private String buildUserName; // =${git.build.user.opName}
     private String buildUserEmail; // =${git.build.user.email}
     private String buildTime; // =${git.build.time}
     private String buildHost; // =${git.build.host}
@@ -52,14 +57,18 @@ public class VersionInfo {
     }
 
     public VersionInfo(String propertiesFilePath) throws IOException {
-        //First: parse the properties file path, which is in format <groupid>-<artifactId>-git.properties
-        int idxOf = propertiesFilePath.lastIndexOf('/');
-        idxOf = Math.max(idxOf, propertiesFilePath.lastIndexOf('\\'));
+        this(new File(propertiesFilePath).toURI());
+    }
+
+    public VersionInfo(URI uri) throws IOException {
+        String path = uri.toString();
+        int idxOf = path.lastIndexOf('/');
+        idxOf = Math.max(idxOf, path.lastIndexOf('\\'));
         String filename;
         if (idxOf <= 0) {
-            filename = propertiesFilePath;
+            filename = path;
         } else {
-            filename = propertiesFilePath.substring(idxOf + 1);
+            filename = path.substring(idxOf + 1);
         }
 
         idxOf = filename.indexOf('-');
@@ -69,7 +78,9 @@ public class VersionInfo {
 
         //Extract values from properties file:
         Properties properties = new Properties();
-        properties.load(VersionCheck.class.getClassLoader().getResourceAsStream(propertiesFilePath));
+        try (InputStream is = uri.toURL().openStream() ) {
+            properties.load(is);
+        }
 
         this.tags = String.valueOf(properties.get("git.tags"));
         this.branch = String.valueOf(properties.get("git.branch"));

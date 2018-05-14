@@ -1,6 +1,8 @@
 package org.nd4j.linalg.api.ndarray;
 
 import com.google.common.primitives.Doubles;
+import com.google.common.primitives.Ints;
+import com.google.flatbuffers.FlatBufferBuilder;
 import net.ericaro.neoitertools.Generator;
 import org.nd4j.linalg.api.blas.params.MMulTranspose;
 import org.nd4j.linalg.api.buffer.DataBuffer;
@@ -10,16 +12,15 @@ import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.indexing.*;
 import org.nd4j.linalg.profiler.OpProfiler;
 import org.nd4j.linalg.util.ArrayUtil;
+import org.nd4j.linalg.util.LongUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-import com.google.common.primitives.Ints;
-import org.nd4j.linalg.util.LongUtils;
+import static org.nd4j.base.Preconditions.checkArgument;
+import static org.nd4j.base.Preconditions.checkNotNull;
 
 /**
  * @author Audrey Loeffel
@@ -45,9 +46,6 @@ public class BaseSparseNDArrayCOO extends BaseSparseNDArray {
         checkNotNull(values);
         checkNotNull(indices);
         checkNotNull(shape);
-        for (int[] i : indices) {
-            checkNotNull(i);
-        }
         if (indices.length == 0 && values.length == 0) {
             // make the room for one value
             this.indices = Nd4j.createBuffer(shape.length);
@@ -132,6 +130,16 @@ public class BaseSparseNDArrayCOO extends BaseSparseNDArray {
         this(values, indices, Nd4j.getSparseInfoProvider().createSparseInformation(flags, sparseOffsets,
                         hiddenDimensions, underlyingRank), shape);
     }
+
+    @Override
+    public int toFlatArray(FlatBufferBuilder builder) {
+        throw new UnsupportedOperationException();
+    }
+
+
+
+
+
 
     /**
      * Count the number of value that are included in the ndarray (view) according to the sparse offsets and the shape
@@ -224,7 +232,7 @@ public class BaseSparseNDArrayCOO extends BaseSparseNDArray {
         if (i < 0)
             i += rank();
         if (isScalar()) {
-            if (Nd4j.getExecutioner().getProfilingMode() != OpExecutioner.ProfilingMode.DISABLED)
+            if (Nd4j.getExecutioner().getProfilingMode() != OpExecutioner.ProfilingMode.DISABLED && Nd4j.getExecutioner().getProfilingMode() != OpExecutioner.ProfilingMode.SCOPE_PANIC)
                 OpProfiler.getInstance().processScalarCall();
 
             addOrUpdate(new int[] {0, 0}, value);
@@ -602,7 +610,7 @@ public class BaseSparseNDArrayCOO extends BaseSparseNDArray {
             throw new IllegalArgumentException("Unable to get linear index >= " + length());
         }
 
-        if (Nd4j.getExecutioner().getProfilingMode() != OpExecutioner.ProfilingMode.DISABLED)
+        if (Nd4j.getExecutioner().getProfilingMode() != OpExecutioner.ProfilingMode.DISABLED && Nd4j.getExecutioner().getProfilingMode() != OpExecutioner.ProfilingMode.SCOPE_PANIC)
             OpProfiler.getInstance().processScalarCall();
 
         if (i == 0)
@@ -1067,4 +1075,13 @@ public class BaseSparseNDArrayCOO extends BaseSparseNDArray {
         return null;
     }
 
+    @Override
+    public INDArray convertToFloats() {
+        return null;
+    }
+
+    @Override
+    public INDArray convertToDoubles() {
+        return null;
+    }
 }

@@ -1,5 +1,7 @@
 package org.nd4j.linalg.primitives;
 
+import lombok.EqualsAndHashCode;
+
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.Map;
@@ -10,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @author raver119@gmail.com
  */
+@EqualsAndHashCode
 public class CounterMap<F, S> implements Serializable{
     private static final long serialVersionUID = 119L;
 
@@ -123,7 +126,7 @@ public class CounterMap<F, S> implements Serializable{
             Counter<S> counter = entry.getValue();
             S localMax = counter.argMax();
             if (counter.getCount(localMax) > maxCount || maxKey == null) {
-                maxKey = new Pair<>(entry.getKey(), localMax);
+                maxKey = new Pair<F, S>(entry.getKey(), localMax);
                 maxCount = counter.getCount(localMax);
             }
         }

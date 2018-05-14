@@ -19,12 +19,14 @@
 
 package org.nd4j.linalg.api.ops.impl.transforms;
 
-import org.apache.commons.math3.util.FastMath;
-import org.nd4j.linalg.api.complex.IComplexNumber;
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.autodiff.samediff.SameDiff;
+import org.nd4j.imports.NoOpNameFoundException;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.BaseTransformOp;
-import org.nd4j.linalg.api.ops.Op;
-import org.nd4j.linalg.util.ComplexUtil;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Arcsin elementwise function
@@ -32,8 +34,20 @@ import org.nd4j.linalg.util.ComplexUtil;
  * @author Adam Gibson
  */
 public class ASinh extends BaseTransformOp {
+    public ASinh(SameDiff sameDiff, SDVariable i_v, boolean inPlace) {
+        super(sameDiff, i_v, inPlace);
+    }
 
-    public ASinh() {}
+    public ASinh(SameDiff sameDiff, SDVariable i_v, int[] shape, boolean inPlace, Object[] extraArgs) {
+        super(sameDiff, i_v, shape, inPlace, extraArgs);
+    }
+
+    public ASinh(SameDiff sameDiff, SDVariable i_v, Object[] extraArgs) {
+        super(sameDiff, i_v, extraArgs);
+    }
+
+    public ASinh() {
+    }
 
     public ASinh(INDArray x, INDArray z) {
         super(x, z);
@@ -53,75 +67,29 @@ public class ASinh extends BaseTransformOp {
 
     @Override
     public int opNum() {
-        return 17;
+        return 84;
     }
 
     @Override
-    public String name() {
+    public String opName() {
         return "asinh";
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, double other) {
-        throw new UnsupportedOperationException();
+    public String onnxName() {
+        throw new NoOpNameFoundException("No onnx op opName found for " + opName());
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, float other) {
-        throw new UnsupportedOperationException();
+    public String tensorflowName() {
+        return "Asinh";
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, IComplexNumber other) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public float op(float origin, float other) {
-        return (float) FastMath.asinh(origin);
-    }
-
-    @Override
-    public double op(double origin, double other) {
-        return FastMath.asinh(origin);
-    }
-
-    @Override
-    public double op(double origin) {
-        return FastMath.asinh(origin);
-    }
-
-    @Override
-    public float op(float origin) {
-        return (float) FastMath.asinh(origin);
-    }
-
-    @Override
-    public IComplexNumber op(IComplexNumber origin) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Op opForDimension(int index, int dimension) {
-        INDArray xAlongDimension = x.vectorAlongDimension(index, dimension);
-
-        if (y() != null)
-            return new ASinh(xAlongDimension, y.vectorAlongDimension(index, dimension),
-                            z.vectorAlongDimension(index, dimension), xAlongDimension.length());
-        else
-            return new ASinh(xAlongDimension, z.vectorAlongDimension(index, dimension), xAlongDimension.length());
-
-    }
-
-    @Override
-    public Op opForDimension(int index, int... dimension) {
-        INDArray xAlongDimension = x.tensorAlongDimension(index, dimension);
-
-        if (y() != null)
-            return new ASinh(xAlongDimension, y.tensorAlongDimension(index, dimension),
-                            z.tensorAlongDimension(index, dimension), xAlongDimension.length());
-        else
-            return new ASinh(xAlongDimension, z.tensorAlongDimension(index, dimension), xAlongDimension.length());
-
+    public List<SDVariable> doDiff(List<SDVariable> i_v) {
+        //dasinh(x)/dx = 1 / sqrt(x^2+1)
+        SDVariable xSqPlus1 = f().square(arg()).add(1.0);
+        SDVariable ret = i_v.get(0).div(f().sqrt(xSqPlus1));
+        return Arrays.asList(ret);
     }
 }

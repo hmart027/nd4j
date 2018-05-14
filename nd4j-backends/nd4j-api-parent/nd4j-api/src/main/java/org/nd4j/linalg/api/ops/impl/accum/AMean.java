@@ -19,16 +19,24 @@
 
 package org.nd4j.linalg.api.ops.impl.accum;
 
-import org.nd4j.linalg.api.complex.IComplexNumber;
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.autodiff.samediff.SameDiff;
+import org.nd4j.imports.NoOpNameFoundException;
 import org.nd4j.linalg.api.ndarray.INDArray;
-import org.nd4j.linalg.api.ops.Op;
 
 /**
  * Calculate the absolute mean of the given vector
  *
  * @author raver119@gmail.com
  */
-public class AMean extends ASum {
+public class  AMean extends ASum {
+    public AMean(SameDiff sameDiff, SDVariable i_v, int[] dimensions) {
+        super(sameDiff, i_v, dimensions);
+    }
+
+    public AMean(SameDiff sameDiff, SDVariable i_v, SDVariable i_v2, int[] dimensions) {
+        super(sameDiff, i_v, i_v2, dimensions);
+    }
 
     public AMean() {}
 
@@ -58,81 +66,23 @@ public class AMean extends ASum {
     }
 
     @Override
-    public String name() {
+    public String opName() {
         return "amean";
     }
 
+
     @Override
-    public Op opForDimension(int index, int dimension) {
-        INDArray xAlongDimension = x.vectorAlongDimension(index, dimension);
-        AMean ret;
-        if (y() != null)
-            ret = new AMean(xAlongDimension, y.vectorAlongDimension(index, dimension), xAlongDimension.length());
-        else
-            ret = new AMean(x.vectorAlongDimension(index, dimension));
-        ret.setApplyFinalTransform(applyFinalTransform());
-        return ret;
+    public String onnxName() {
+        throw new NoOpNameFoundException("No onnx op opName found for " +  opName());
     }
 
     @Override
-    public Op opForDimension(int index, int... dimension) {
-        INDArray xAlongDimension = x.tensorAlongDimension(index, dimension);
-        AMean ret;
-
-        if (y() != null)
-            ret = new AMean(xAlongDimension, y.tensorAlongDimension(index, dimension), xAlongDimension.length());
-        else
-            ret = new AMean(x.tensorAlongDimension(index, dimension));
-        ret.setApplyFinalTransform(applyFinalTransform());
-        return ret;
-    }
-
-
-
-    @Override
-    public double getAndSetFinalResult(double accum) {
-        double result;
-        if (applyFinalTransform()) {
-            result = accum / n();
-            this.finalResult = result;
-        } else {
-            result = accum;
-            this.finalResult = result;
-        }
-        return result;
-
+    public String tensorflowName() {
+        throw new NoOpNameFoundException("No tensorflow op opName found for " +  opName());
     }
 
     @Override
-    public float getAndSetFinalResult(float accum) {
-        if (applyFinalTransform()) {
-            float f = accum / n();
-            this.finalResult = f;
-            return f;
-        } else {
-            this.finalResult = accum;
-            return accum;
-        }
-
-    }
-
-    @Override
-    public double calculateFinalResult(double accum, long n) {
-        if (applyFinalTransform())
-            return accum / n;
-        return accum;
-    }
-
-    @Override
-    public float calculateFinalResult(float accum, long n) {
-        if (applyFinalTransform())
-            return accum / n;
-        return accum;
-    }
-
-    @Override
-    public IComplexNumber getAndSetFinalResult(IComplexNumber accum) {
-        finalResultComplex = accum.div(n());
-        return finalResultComplex;
+    public Type opType() {
+        return Type.REDUCE;
     }
 }

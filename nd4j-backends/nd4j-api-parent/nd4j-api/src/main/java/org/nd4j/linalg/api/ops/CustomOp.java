@@ -13,7 +13,7 @@ import java.util.List;
  */
 public interface CustomOp {
     /**
-     * This method returns op name as string
+     * This method returns op opName as string
      * @return
      */
     String opName();
@@ -31,11 +31,75 @@ public interface CustomOp {
     boolean isInplaceCall();
 
 
-    List<INDArray> getInputArguments();
 
-    List<INDArray> getOutputArguments();
 
-    List<Integer> getIArguments();
+    INDArray[] outputArguments();
 
-    List<Double> getTArguments();
+    INDArray[] inputArguments();
+
+    int[] iArgs();
+
+    double[] tArgs();
+
+    void addIArgument(int... arg);
+
+
+    void removeIArgument(Integer arg);
+
+    Integer getIArgument(int index);
+
+    int numIArguments();
+
+    void addTArgument(double... arg);
+
+    void removeTArgument(Double arg);
+
+    Double getTArgument(int index);
+
+    int numTArguments();
+
+
+    void addInputArgument(INDArray... arg);
+
+    void removeInputArgument(INDArray arg);
+
+    INDArray getInputArgument(int index);
+
+    int numInputArguments();
+
+
+    void addOutputArgument(INDArray... arg);
+
+    void removeOutputArgument(INDArray arg);
+
+    INDArray getOutputArgument(int index);
+
+    int numOutputArguments();
+
+
+
+    /**
+     * Calculate the output shape for this op
+     * @return
+     */
+    List<int[]> calculateOutputShape();
+
+    /**
+     * Get the custom op descriptor if one is available.
+     * @return
+     */
+    CustomOpDescriptor getDescriptor();
+
+    /**
+     * Asserts a valid state for execution,
+     * otherwise throws an {@link org.nd4j.linalg.exception.ND4JIllegalStateException}
+     */
+    void assertValidForExecution();
+
+    /**
+     * Attempt to populate inputs and outputs from samediff.
+     * This method will not attempt to fill in integer or double aruguments.
+     */
+    void populateInputsAndOutputsFromSameDiff();
+
 }

@@ -19,6 +19,10 @@
 
 package org.nd4j.linalg.jcublas;
 
+import lombok.val;
+import org.nd4j.linalg.api.ops.performance.PerformanceTracker;
+import org.nd4j.linalg.compression.CompressionUtils;
+import org.nd4j.linalg.memory.MemcpyDirection;
 import org.nd4j.linalg.primitives.Pair;
 import org.bytedeco.javacpp.*;
 import org.bytedeco.javacpp.indexer.*;
@@ -89,6 +93,21 @@ public class JCublasNDArrayFactory extends BaseNDArrayFactory {
     @Override
     public void createBlas() {
         blas = new CudaBlas();
+        PointerPointer functions = new PointerPointer(13);
+        functions.put(0, Loader.addressof("cublasSgemv_v2"));
+        functions.put(1, Loader.addressof("cublasDgemv_v2"));
+        functions.put(2, Loader.addressof("cublasHgemm"));
+        functions.put(3, Loader.addressof("cublasSgemm_v2"));
+        functions.put(4, Loader.addressof("cublasDgemm_v2"));
+        functions.put(5, Loader.addressof("cublasSgemmEx"));
+        functions.put(6, Loader.addressof("cublasHgemmBatched"));
+        functions.put(7, Loader.addressof("cublasSgemmBatched"));
+        functions.put(8, Loader.addressof("cublasDgemmBatched"));
+        functions.put(9, Loader.addressof("cusolverDnSgesvd_bufferSize"));
+        functions.put(10, Loader.addressof("cusolverDnDgesvd_bufferSize"));
+        functions.put(11, Loader.addressof("cusolverDnSgesvd"));
+        functions.put(12, Loader.addressof("cusolverDnDgesvd"));
+        nativeOps.initializeFunctions(functions);
     }
 
     @Override
@@ -600,7 +619,7 @@ public class JCublasNDArrayFactory extends BaseNDArrayFactory {
             for (int j = 0; j < toConcat[i].rank(); j++)
                 if (j != dimension && toConcat[i].size(j) != outputShape[j]) {
                     throw new IllegalArgumentException(
-                                    "Illegal concatneation at array " + i + " and shape element " + j);
+                                    "Illegal concatenation at array " + i + " and shape element " + j);
                 }
 
             Pair<DataBuffer, DataBuffer> tadBuffers =
@@ -716,7 +735,7 @@ public class JCublasNDArrayFactory extends BaseNDArrayFactory {
             for (int j = 0; j < toConcat[i].rank(); j++)
                 if (j != dimension && toConcat[i].size(j) != outputShape[j]) {
                     throw new IllegalArgumentException(
-                            "Illegal concatneation at array " + i + " and shape element " + j);
+                            "Illegal concatenation at array " + i + " and shape element " + j);
                 }
         }
 
@@ -748,9 +767,12 @@ public class JCublasNDArrayFactory extends BaseNDArrayFactory {
 
         AllocationPoint point = allocator.getAllocationPoint(ret);
 
+        val perfD = PerformanceTracker.getInstance().helperStartTransaction();
 
         nativeOps.memcpyAsync(point.getDevicePointer(), point.getHostPointer(), ret.lengthLong() * Nd4j.sizeOfDataType(ret.data().dataType()), CudaConstants.cudaMemcpyHostToDevice, context.getSpecialStream());
         context.getSpecialStream().synchronize();
+
+        PerformanceTracker.getInstance().helperRegisterTransaction(point.getDeviceId(), perfD, point.getNumberOfBytes(), MemcpyDirection.HOST_TO_DEVICE);
 
         point.tickHostRead();
         point.tickDeviceWrite();
@@ -783,6 +805,22 @@ public class JCublasNDArrayFactory extends BaseNDArrayFactory {
      */
     @Override
     public INDArray pullRows(INDArray source, int sourceDimension, int[] indexes, char order) {
+        if (indexes == null || indexes.length < 1)
+            throw new IllegalStateException("Indexes can't be null or zero-length");
+
+        int[] shape;
+        if (sourceDimension == 1)
+            shape = new int[] {indexes.length, source.shape()[sourceDimension]};
+        else if (sourceDimension == 0)
+            shape = new int[] {source.shape()[sourceDimension], indexes.length};
+        else
+            throw new UnsupportedOperationException("2D input is expected");
+
+        return pullRows(source, Nd4j.createUninitialized(shape, order), sourceDimension, indexes);
+    }
+
+    @Override
+    public INDArray pullRows(INDArray source, INDArray destination, int sourceDimension, int[] indexes) {
         if (Nd4j.getExecutioner() instanceof GridExecutioner)
             ((GridExecutioner) Nd4j.getExecutioner()).flushQueue();
 
@@ -797,7 +835,15 @@ public class JCublasNDArrayFactory extends BaseNDArrayFactory {
         else
             throw new UnsupportedOperationException("2D input is expected");
 
-        INDArray ret = Nd4j.createUninitialized(shape, order);
+        INDArray ret = destination;
+        if(ret == null){
+            ret = Nd4j.createUninitialized(shape, order);
+        } else {
+            if(!Arrays.equals(shape, destination.shape())){
+                throw new IllegalStateException("Cannot pull rows into destination array: expected destination array of" +
+                        " shape " + Arrays.toString(shape) + " but got destination array of shape " + Arrays.toString(destination.shape()));
+            }
+        }
 
         AtomicAllocator allocator = AtomicAllocator.getInstance();
         CudaContext context = allocator.getFlowController().prepareAction(ret, source);
@@ -808,7 +854,7 @@ public class JCublasNDArrayFactory extends BaseNDArrayFactory {
         Pointer zShape = AtomicAllocator.getInstance().getPointer(ret.shapeInfoDataBuffer(), context);
 
         PointerPointer extras = new PointerPointer(AddressRetriever.retrieveHostPointer(ret.shapeInfoDataBuffer()),
-                        context.getOldStream(), allocator.getDeviceIdPointer());
+                context.getOldStream(), allocator.getDeviceIdPointer());
 
         CudaIntDataBuffer tempIndexes = new CudaIntDataBuffer(indexes.length);
         AtomicAllocator.getInstance().memcpyBlocking(tempIndexes, new IntPointer(indexes), indexes.length * 4, 0);
@@ -830,16 +876,16 @@ public class JCublasNDArrayFactory extends BaseNDArrayFactory {
 
         if (ret.data().dataType() == DataBuffer.Type.DOUBLE) {
             nativeOps.pullRowsDouble(extras, (DoublePointer) x, (IntPointer) xShape, (DoublePointer) z,
-                            (IntPointer) zShape, indexes.length, (IntPointer) pIndex, (IntPointer) tadShapeInfo,
-                            new LongPointerWrapper(tadOffsets), (IntPointer) zTadShapeInfo, new LongPointerWrapper(zTadOffsets));
+                    (IntPointer) zShape, indexes.length, (IntPointer) pIndex, (IntPointer) tadShapeInfo,
+                    new LongPointerWrapper(tadOffsets), (IntPointer) zTadShapeInfo, new LongPointerWrapper(zTadOffsets));
         } else if (ret.data().dataType() == DataBuffer.Type.FLOAT) {
             nativeOps.pullRowsFloat(extras, (FloatPointer) x, (IntPointer) xShape, (FloatPointer) z,
-                            (IntPointer) zShape, indexes.length, (IntPointer) pIndex, (IntPointer) tadShapeInfo,
-                        new LongPointerWrapper(tadOffsets), (IntPointer) zTadShapeInfo, new LongPointerWrapper(zTadOffsets));
+                    (IntPointer) zShape, indexes.length, (IntPointer) pIndex, (IntPointer) tadShapeInfo,
+                    new LongPointerWrapper(tadOffsets), (IntPointer) zTadShapeInfo, new LongPointerWrapper(zTadOffsets));
         } else {
             nativeOps.pullRowsHalf(extras, (ShortPointer) x, (IntPointer) xShape, (ShortPointer) z, (IntPointer) zShape,
-                            indexes.length, (IntPointer) pIndex, (IntPointer) tadShapeInfo, new LongPointerWrapper(tadOffsets),
-                            (IntPointer) zTadShapeInfo, new LongPointerWrapper(zTadOffsets));
+                    indexes.length, (IntPointer) pIndex, (IntPointer) tadShapeInfo, new LongPointerWrapper(tadOffsets),
+                    (IntPointer) zTadShapeInfo, new LongPointerWrapper(zTadOffsets));
         }
 
         allocator.registerAction(context, ret, source);
@@ -1163,6 +1209,8 @@ public class JCublasNDArrayFactory extends BaseNDArrayFactory {
 
             Pair<DataBuffer, DataBuffer> tadBuffers = tadManager.getTADOnlyShapeInfo(array, dimension);
 
+//            log.info("Original shape: {}; dimension: {}; TAD shape: {}", array.shapeInfoDataBuffer().asInt(), dimension, tadBuffers.getFirst().asInt());
+
             Pointer tadShapeInfo = AtomicAllocator.getInstance().getPointer(tadBuffers.getFirst(), context);
 
             DataBuffer offsets = tadBuffers.getSecond();
@@ -1387,8 +1435,8 @@ public class JCublasNDArrayFactory extends BaseNDArrayFactory {
         if (!(source instanceof CompressedDataBuffer))
             AtomicAllocator.getInstance().synchronizeHostData(source);
 
-        if (typeDst.ordinal() < 6) {
-            // all types below 6 are compression modes
+        if (CompressionUtils.goingToCompress(typeSrc, typeDst)) {
+            // all types below 8 are compression modes
             BytePointer pointer = new BytePointer(source.length() * elementSize);
             CompressionDescriptor descriptor = new CompressionDescriptor(source, typeDst.name());
             descriptor.setCompressionType(CompressionType.LOSSY);
@@ -1533,7 +1581,7 @@ public class JCublasNDArrayFactory extends BaseNDArrayFactory {
                     new PointerPointer(AtomicAllocator.getInstance().getPointer(tempX, context)),
                     (IntPointer) AtomicAllocator.getInstance().getPointer(result[0].shapeInfoDataBuffer(), context),
                     (IntPointer) AtomicAllocator.getInstance().getPointer(tadBuffers.getFirst(), context),
-                    new LongPointerWrapper((IntPointer) AtomicAllocator.getInstance().getPointer(tadBuffers.getSecond(), context))
+                    new LongPointerWrapper(AtomicAllocator.getInstance().getPointer(tadBuffers.getSecond(), context))
             );
         } else if (Nd4j.dataType() == DataBuffer.Type.FLOAT) {
             nativeOps.tearFloat(extraz,

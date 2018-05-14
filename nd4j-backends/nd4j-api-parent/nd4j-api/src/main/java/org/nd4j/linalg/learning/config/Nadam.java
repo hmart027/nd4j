@@ -11,7 +11,7 @@ import org.nd4j.shade.jackson.annotation.JsonProperty;
 import java.util.Arrays;
 
 /**
- * Setup and Builder for Nadam updater.
+ * Setup and DynamicCustomOpsBuilder for Nadam updater.
  * https://arxiv.org/pdf/1609.04747.pdf
  *
  * @author Andrey Spiridonov
@@ -86,6 +86,17 @@ public class Nadam implements IUpdater {
             return learningRateSchedule.valueAt(iteration, epoch);
         }
         return learningRate;
+    }
+
+    @Override
+    public boolean hasLearningRate() {
+        return true;
+    }
+
+    @Override
+    public void setLrAndSchedule(double lr, ISchedule lrSchedule) {
+        this.learningRate = lr;
+        this.learningRateSchedule = lrSchedule;
     }
 
     //Partial builder implementation to give public no-arg constructor

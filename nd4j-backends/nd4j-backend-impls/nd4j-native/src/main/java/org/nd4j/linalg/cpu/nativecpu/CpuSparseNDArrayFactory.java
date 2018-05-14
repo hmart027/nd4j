@@ -76,6 +76,12 @@ public class CpuSparseNDArrayFactory extends BaseSparseNDArrayFactory {
     }
     //  TODO ->
 
+
+    @Override
+    public INDArray trueScalar(Number value) {
+        throw new UnsupportedOperationException();
+    }
+
     @Override
     public IComplexFloat createFloat(float real, float imag) {
         return null;
@@ -103,6 +109,11 @@ public class CpuSparseNDArrayFactory extends BaseSparseNDArrayFactory {
 
     @Override
     public INDArray specialConcat(int dimension, INDArray... toConcat) {
+        return null;
+    }
+
+    @Override
+    public INDArray pullRows(INDArray source, INDArray destination, int sourceDimension, int[] indexes) {
         return null;
     }
 

@@ -19,6 +19,7 @@
 
 package org.nd4j.linalg.api.ops.executioner;
 
+import org.bytedeco.javacpp.Pointer;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.*;
 import org.nd4j.linalg.api.ops.aggregates.Aggregate;
@@ -26,9 +27,6 @@ import org.nd4j.linalg.api.ops.aggregates.Batch;
 import org.nd4j.linalg.api.ops.impl.accum.Variance;
 import org.nd4j.linalg.api.rng.Random;
 import org.nd4j.linalg.cache.TADManager;
-import org.nd4j.linalg.primitives.ImmutablePair;
-import org.nd4j.linalg.primitives.ImmutableTriple;
-import org.nd4j.linalg.primitives.Pair;
 
 import java.util.List;
 import java.util.Map;
@@ -47,11 +45,19 @@ public interface OpExecutioner {
     }
 
     enum ProfilingMode {
-        DISABLED, NAN_PANIC, INF_PANIC, ANY_PANIC, OPERATIONS, METHODS, ALL
+        DISABLED,
+        NAN_PANIC,
+        INF_PANIC,
+        ANY_PANIC,
+        OPERATIONS,
+        METHODS,
+        ALL,
+        SCOPE_PANIC,
+        BANDWIDTH,
     }
 
     /**
-     * This method returns name of the last invoked op
+     * This method returns opName of the last invoked op
      *
      * @return
      */
@@ -352,4 +358,39 @@ public interface OpExecutioner {
      * @param op
      */
     void exec(CustomOp op);
+
+    List<int[]> calculateOutputShape(CustomOp op);
+
+
+    void enableDebugMode(boolean reallyEnable);
+
+    void enableVerboseMode(boolean reallyEnable);
+
+
+    void registerGraph(long id, Pointer graph);
+
+    Map<String, INDArray> executeGraph(long id, Map<String, INDArray> map);
+
+    void forgetGraph(long id);
+
+    /**
+     * This method allows to set desired number of elements per thread, for performance optimization purposes.
+     * I.e. if array contains 2048 elements, and threshold is set to 1024, 2 threads will be used for given op execution.
+     *
+     * Default value: 1024
+     *
+     * @param threshold
+     */
+    void setElementsThreshold(int threshold);
+
+    /**
+     * This method allows to set desired number of sub-arrays per thread, for performance optimization purposes.
+     * I.e. if matrix has shape of 64 x 128, and threshold is set to 8, each thread will be processing 8 sub-arrays (sure, if you have 8 core cpu).
+     * If your cpu has, say, 4, cores, only 4 threads will be spawned, and each will process 16 sub-arrays
+     *
+     * Default value: 8
+     * @param threshold
+     */
+    void setTadThreshold(int threshold);
+
 }

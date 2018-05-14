@@ -6,6 +6,12 @@ import org.junit.runners.Parameterized;
 import org.nd4j.linalg.BaseNd4jTest;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.rng.Random;
+import org.nd4j.linalg.checkutil.NDArrayCreationUtil;
+import org.nd4j.linalg.primitives.Pair;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 
@@ -37,6 +43,20 @@ public class Nd4jTest extends BaseNd4jTest {
         INDArray ret = Nd4j.create(new int[] {4, 2});
 
         assertEquals(ret.length(), 8);
+    }
+
+    @Test
+    public void testCreateFromList() {
+        List<Double> doubles = Arrays.asList(1.0, 2.0);
+        INDArray NdarrayDobules = Nd4j.create(doubles);
+
+        assertEquals((Double)NdarrayDobules.getDouble(0),doubles.get(0));
+        assertEquals((Double)NdarrayDobules.getDouble(1),doubles.get(1));
+
+        List<Float> floats = Arrays.asList(3.0f, 4.0f);
+        INDArray NdarrayFloats = Nd4j.create(floats);
+        assertEquals((Float)NdarrayFloats.getFloat(0),floats.get(0));
+        assertEquals((Float)NdarrayFloats.getFloat(1),floats.get(1));
     }
 
     @Test
@@ -105,5 +125,33 @@ public class Nd4jTest extends BaseNd4jTest {
         assertEquals(Nd4j.create(new double[] {2.25, 2.25, 2.25}), var);
     }
 
+    @Test
+    public void testExpandDims(){
+        final List<Pair<INDArray, String>> testMatricesC = NDArrayCreationUtil.getAllTestMatricesWithShape('c', 3, 5, 0xDEAD);
+        final List<Pair<INDArray, String>> testMatricesF = NDArrayCreationUtil.getAllTestMatricesWithShape('f', 7, 11, 0xBEEF);
+
+        final ArrayList<Pair<INDArray, String>> testMatrices = new ArrayList<>(testMatricesC);
+        testMatrices.addAll(testMatricesF);
+
+        for (Pair<INDArray, String> testMatrixPair : testMatrices) {
+            final String recreation = testMatrixPair.getSecond();
+            final INDArray testMatrix = testMatrixPair.getFirst();
+            final char ordering = testMatrix.ordering();
+            final int[] shape = testMatrix.shape();
+            final int rank = testMatrix.rank();
+            for (int i = -rank; i <= rank; i++) {
+                final INDArray expanded = Nd4j.expandDims(testMatrix, i);
+
+                final String message = "Expanding in Dimension " + i + "; Shape before expanding: " + Arrays.toString(shape) + " "+ordering+" Order; Shape after expanding: " + Arrays.toString(expanded.shape()) +  " "+expanded.ordering()+"; Input Created via: " + recreation;
+
+                assertEquals(message, 1, expanded.shape()[i < 0 ? i + rank : i]);
+                assertEquals(message, testMatrix.ravel(), expanded.ravel());
+                assertEquals(message, ordering,  expanded.ordering());
+
+                testMatrix.assign(Nd4j.rand(shape));
+                assertEquals(message, testMatrix.ravel(), expanded.ravel());
+            }
+        }
+    }
 
 }

@@ -12,6 +12,8 @@
 
 package org.nd4j.context;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
@@ -22,6 +24,7 @@ import java.util.Properties;
  *
  * @author Adam Gibson
  */
+@Slf4j
 public class Nd4jContext implements Serializable {
 
     private Properties conf;
@@ -37,15 +40,16 @@ public class Nd4jContext implements Serializable {
     }
 
     /**
-     * Load the additional properties from an input stream
+     * Load the additional properties from an input stream and load all system properties
      *
      * @param inputStream
      */
     public void updateProperties(InputStream inputStream) {
         try {
             conf.load(inputStream);
+            conf.putAll(System.getProperties());
         } catch (IOException e) {
-            e.printStackTrace();
+            log.warn("Error loading system properties from input stream", e);
         }
     }
 

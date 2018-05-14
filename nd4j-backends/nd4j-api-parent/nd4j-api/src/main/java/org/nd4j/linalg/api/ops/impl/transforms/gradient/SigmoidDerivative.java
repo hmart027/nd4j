@@ -1,16 +1,28 @@
 package org.nd4j.linalg.api.ops.impl.transforms.gradient;
 
+
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.autodiff.samediff.SameDiff;
+import org.nd4j.imports.NoOpNameFoundException;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.BaseGradientOp;
-import org.nd4j.linalg.api.ops.Op;
 import org.nd4j.linalg.api.ops.impl.transforms.Sigmoid;
-import org.nd4j.linalg.api.ops.impl.transforms.SoftMax;
 import org.nd4j.linalg.factory.Nd4j;
+
+import java.util.List;
 
 /**
  *
  */
 public class SigmoidDerivative extends BaseGradientOp  {
+    public SigmoidDerivative(SameDiff sameDiff, SDVariable i_v1, SDVariable i_v2) {
+        super(sameDiff, i_v1, i_v2);
+    }
+
+    public SigmoidDerivative(SameDiff sameDiff, SDVariable i_v1, SDVariable i_v2, boolean inPlace) {
+        super(sameDiff, i_v1, i_v2, inPlace);
+    }
+
     public SigmoidDerivative(INDArray x, INDArray z) {
         super(x, z);
     }
@@ -41,69 +53,38 @@ public class SigmoidDerivative extends BaseGradientOp  {
     }
 
     /**
-     * The name of this operation
+     * The opName of this operation
      *
-     * @return the name of this operation
+     * @return the opName of this operation
      */
     @Override
-    public String name() {
+    public String opName() {
         return "sigmoidderivative";
     }
 
-
-
-    /**
-     * A copy of this operation for a particular dimension of the input
-     *
-     * @param index     the index of the op to iterate over
-     * @param dimension the dimension to ge the input for
-     * @return the operation for that dimension
-     */
     @Override
-    public Op opForDimension(int index, int dimension) {
-        INDArray xAlongDimension = x.vectorAlongDimension(index, dimension);
-
-        if (y() != null)
-            return new org.nd4j.linalg.api.ops.impl.transforms.SoftMaxDerivative(x.vectorAlongDimension(index, dimension),
-                    y.vectorAlongDimension(index, dimension), z.vectorAlongDimension(index, dimension),
-                    xAlongDimension.length());
-        else
-            return new org.nd4j.linalg.api.ops.impl.transforms.SoftMaxDerivative(x.vectorAlongDimension(index, dimension),
-                    z.vectorAlongDimension(index, dimension), xAlongDimension.length());
+    public String onnxName() {
+        throw new NoOpNameFoundException("No onnx op opName found for " +  opName());
     }
 
-    /**
-     * A copy of this operation for a particular dimension of the input
-     *
-     * @param index     the index of the op to iterate over
-     * @param dimension the dimension to ge the input for
-     * @return the operation for that dimension
-     */
     @Override
-    public Op opForDimension(int index, int... dimension) {
-        INDArray xAlongDimension = x.tensorAlongDimension(index, dimension);
-
-        if (y() != null)
-            return new org.nd4j.linalg.api.ops.impl.transforms.SoftMaxDerivative(x.tensorAlongDimension(index, dimension),
-                    y.tensorAlongDimension(index, dimension), z.tensorAlongDimension(index, dimension),
-                    xAlongDimension.length());
-        else
-            return new org.nd4j.linalg.api.ops.impl.transforms.SoftMaxDerivative(x.tensorAlongDimension(index, dimension),
-                    z.tensorAlongDimension(index, dimension), xAlongDimension.length());
+    public String tensorflowName() {
+        return "SigmoidGrad";
     }
 
     @Override
     public void exec() {
-        INDArray sigmoid = Nd4j.getExecutioner().execAndReturn(new Sigmoid(x));
-        INDArray rsubbed = sigmoid.rsub(1);
-        INDArray mulled = y.mul(sigmoid).muli(rsubbed);
-        if(mulled != z)
-            z.assign(mulled);
-
+        Nd4j.getExecutioner().exec(new org.nd4j.linalg.api.ops.impl.transforms.SigmoidDerivative(x,z));
+        z.muli(wrt());
     }
 
     @Override
     public void exec(int... dimensions) {
         super.exec(dimensions);
+    }
+
+    @Override
+    public List<SDVariable> doDiff(List<SDVariable> i_v) {
+        throw new UnsupportedOperationException();
     }
 }

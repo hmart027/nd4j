@@ -237,6 +237,19 @@ public class Counter<T> implements Serializable {
         dirty.set(false);
     }
 
+    @Override
+    public boolean equals(Object o){
+        if(!(o instanceof Counter))
+            return false;
+        Counter c2 = (Counter)o;
+        return map.equals(c2.map);
+    }
+
+    @Override
+    public int hashCode(){
+        return map.hashCode();
+    }
+
     /**
      * Returns total number of tracked elements
      *
@@ -262,7 +275,7 @@ public class Counter<T> implements Serializable {
 
 
     public PriorityQueue<Pair<T, Double>> asPriorityQueue() {
-        PriorityQueue<Pair<T, Double>> pq = new PriorityQueue<>(map.size(), new PairComparator());
+        PriorityQueue<Pair<T, Double>> pq = new PriorityQueue<>(Math.max(1,map.size()), new PairComparator());
         for (Map.Entry<T, AtomicDouble> entry : map.entrySet()) {
             pq.add(Pair.create(entry.getKey(), entry.getValue().get()));
         }
@@ -272,7 +285,7 @@ public class Counter<T> implements Serializable {
 
 
     public PriorityQueue<Pair<T, Double>> asReversedPriorityQueue() {
-        PriorityQueue<Pair<T, Double>> pq = new PriorityQueue<>(map.size(), new ReversedPairComparator());
+        PriorityQueue<Pair<T, Double>> pq = new PriorityQueue<>(Math.max(1,map.size()), new ReversedPairComparator());
         for (Map.Entry<T, AtomicDouble> entry : map.entrySet()) {
             pq.add(Pair.create(entry.getKey(), entry.getValue().get()));
         }
@@ -280,7 +293,7 @@ public class Counter<T> implements Serializable {
         return pq;
     }
 
-    protected class PairComparator implements Comparator<Pair<T, Double>> {
+    public  class PairComparator implements Comparator<Pair<T, Double>> {
 
         @Override
         public int compare(Pair<T, Double> o1, Pair<T, Double> o2) {
@@ -288,7 +301,7 @@ public class Counter<T> implements Serializable {
         }
     }
 
-    protected class ReversedPairComparator implements Comparator<Pair<T, Double>> {
+    public class ReversedPairComparator implements Comparator<Pair<T, Double>> {
 
         @Override
         public int compare(Pair<T, Double> o1, Pair<T, Double> o2) {

@@ -21,6 +21,7 @@ package org.nd4j.linalg.jcublas.buffer;
 
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.val;
 import org.bytedeco.javacpp.*;
 import org.bytedeco.javacpp.indexer.*;
 import org.nd4j.jita.allocator.enums.CudaConstants;
@@ -36,8 +37,10 @@ import org.nd4j.linalg.api.complex.IComplexFloat;
 import org.nd4j.linalg.api.complex.IComplexNumber;
 import org.nd4j.linalg.api.memory.MemoryWorkspace;
 import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.api.ops.performance.PerformanceTracker;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.jcublas.context.CudaContext;
+import org.nd4j.linalg.memory.MemcpyDirection;
 import org.nd4j.linalg.memory.abstracts.DummyWorkspace;
 import org.nd4j.linalg.util.ArrayUtil;
 import org.nd4j.linalg.util.LongUtils;
@@ -99,10 +102,15 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
         // now we're
         CudaContext context = (CudaContext) AtomicAllocator.getInstance().getDeviceContext().getContext();
 
+        val perfD = PerformanceTracker.getInstance().helperStartTransaction();
+
         NativeOpsHolder.getInstance().getDeviceNativeOps().memcpyAsync(allocationPoint.getHostPointer(), pointer, length * getElementSize(), CudaConstants.cudaMemcpyHostToHost, context.getSpecialStream());
         NativeOpsHolder.getInstance().getDeviceNativeOps().memcpyAsync(allocationPoint.getDevicePointer(), allocationPoint.getHostPointer(), length * getElementSize(), CudaConstants.cudaMemcpyHostToHost, context.getSpecialStream());
 
         context.getSpecialStream().synchronize();
+
+        PerformanceTracker.getInstance().helperRegisterTransaction(allocationPoint.getDeviceId(), perfD / 2, allocationPoint.getNumberOfBytes(), MemcpyDirection.HOST_TO_HOST);
+        PerformanceTracker.getInstance().helperRegisterTransaction(allocationPoint.getDeviceId(), perfD / 2, allocationPoint.getNumberOfBytes(), MemcpyDirection.HOST_TO_DEVICE);
 
         this.pointer = new CudaPointer(allocationPoint.getHostPointer(), length * getElementSize(), 0);
 
@@ -258,8 +266,7 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
         this.attached = true;
         this.parentWorkspace = workspace;
 
-        this.allocationPoint = AtomicAllocator.getInstance().allocateMemory(this,
-                new AllocationShape(length, this.elementSize, dataType()), initialize);
+        this.allocationPoint = AtomicAllocator.getInstance().allocateMemory(this, new AllocationShape(length, this.elementSize, dataType()), initialize);
         this.length = length;
         //allocationPoint.attachBuffer(this);
         //this.elementSize = elementSize;
@@ -301,6 +308,8 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
             this.pointer = new CudaPointer(allocationPoint.getPointers().getHostPointer(), length, 0).asLongPointer();
             indexer = LongIndexer.create((LongPointer) pointer);
         }
+
+        workspaceGenerationId = workspace.getGenerationId();
 
         /*
         this.wrappedBuffer = this.pointer.asByteBuffer();
@@ -851,7 +860,7 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
             }
 
             if (t != globalType && t != Type.INT && Nd4j.sizeOfDataType(globalType) < Nd4j.sizeOfDataType(t)) {
-                log.warn("Loading a data stream with type different from what is set globally. Expect precision loss");
+                log.warn("Loading a data stream with opType different from what is set globally. Expect precision loss");
                 if (globalType == Type.INT)
                     log.warn("Int to float/double widening UNSUPPORTED!!!");
             }
@@ -896,6 +905,7 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
                     if (workspace != null && (workspace instanceof DummyWorkspace)) {
                         this.attached = true;
                         this.parentWorkspace = workspace;
+                        workspaceGenerationId = workspace.getGenerationId();
                     }
 
                     this.allocationPoint = AtomicAllocator.getInstance().allocateMemory(this,
@@ -1112,19 +1122,26 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
             CudaContext context = (CudaContext) AtomicAllocator.getInstance().getDeviceContext().getContext();
             NativeOpsHolder.getInstance().getDeviceNativeOps().memsetAsync(allocationPoint.getDevicePointer(), 0, length * elementSize, 0, context.getSpecialStream());
 
+            MemcpyDirection direction = MemcpyDirection.DEVICE_TO_DEVICE;
+            val perfD = PerformanceTracker.getInstance().helperStartTransaction();
+
             if (old.isActualOnDeviceSide()) {
                 NativeOpsHolder.getInstance().getDeviceNativeOps().memcpyAsync(allocationPoint.getDevicePointer(), old.getDevicePointer(), this.length * elementSize, CudaConstants.cudaMemcpyDeviceToDevice, context.getSpecialStream());
             } else if (old.isActualOnHostSide()) {
                 NativeOpsHolder.getInstance().getDeviceNativeOps().memcpyAsync(allocationPoint.getDevicePointer(), old.getHostPointer(), this.length * elementSize, CudaConstants.cudaMemcpyHostToDevice, context.getSpecialStream());
+                direction = MemcpyDirection.HOST_TO_DEVICE;
             }
 
             context.getSpecialStream().synchronize();
+
+            PerformanceTracker.getInstance().helperRegisterTransaction(allocationPoint.getDeviceId(), perfD, allocationPoint.getNumberOfBytes(), direction);
+
             allocationPoint.tickDeviceWrite();
             // we're keeping pointer reference for JVM
             pointer.address();
 
             // we need to update length with new value now
-            this.length = length;
+            //this.length = length;
         if(isAttached()){
             // do nothing here, that's workspaces
         } else{
@@ -1132,6 +1149,11 @@ public abstract class BaseCudaDataBuffer extends BaseDataBuffer implements JCuda
         }
 
         return this;
+    }
+
+    @Override
+    public long capacity() {
+        return pointer.capacity();
     }
 
     /*

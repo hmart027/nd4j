@@ -1188,6 +1188,8 @@ public abstract class NativeOps extends Pointer {
      */
     public abstract void initializeDevicesAndFunctions();
 
+    public abstract void initializeFunctions(PointerPointer functions);
+
     public abstract Pointer mallocHost(long memorySize, int flags);
 
     public abstract Pointer mallocDevice(long memorySize, Pointer ptrToDeviceId, int flags);
@@ -1309,7 +1311,7 @@ public abstract class NativeOps extends Pointer {
                     PointerPointer z, PointerPointer zShapeInfo, int N, IntPointer shuffleMap,
                     PointerPointer tadShapeInfo, PointerPointer tadOffsets);
 
-    // type conversion
+    // opType conversion
 
     public abstract void convertTypes(PointerPointer extras, int srcType, Pointer x, long N, int dstType, Pointer z);
 
@@ -1598,7 +1600,50 @@ public abstract class NativeOps extends Pointer {
 
     public abstract String getAllCustomOps();
 
+    public abstract String getAllOperations();
+
     public abstract int execCustomOpFloat(PointerPointer extraPointers, long opHashCode, PointerPointer inputBuffers, PointerPointer inputShapes, int numInput, PointerPointer outputBuffers, PointerPointer outputShapes, int numOutputs, FloatPointer tArgs, int numTArgs, IntPointer iArgs, int numIArgs, boolean isInplace);
     public abstract int execCustomOpDouble(PointerPointer extraPointers, long opHashCode, PointerPointer inputBuffers, PointerPointer inputShapes, int numInput, PointerPointer outputBuffers, PointerPointer outputShapes, int numOutputs, DoublePointer tArgs, int numTArgs, IntPointer iArgs, int numIArgs, boolean isInplace);
     public abstract int execCustomOpHalf(PointerPointer extraPointers, long opHashCode, PointerPointer inputBuffers, PointerPointer inputShapes, int numInput, PointerPointer outputBuffers, PointerPointer outputShapes, int numOutputs, @Cast("float16*") ShortPointer tArgs, int numTArgs, IntPointer iArgs, int numIArgs, boolean isInplace);
+
+    public abstract Pointer calculateOutputShapesFloat(PointerPointer extraPointers, long hash, PointerPointer inputShapes, int numInputShapes, FloatPointer tArgs, int numTArgs, IntPointer iArgs, int numIArgs);
+    public abstract Pointer calculateOutputShapesHalf(PointerPointer extraPointers, long hash, PointerPointer inputShapes, int numInputShapes, @Cast("float16") ShortPointer tArgs, int numTArgs, IntPointer iArgs, int numIArgs);
+    public abstract Pointer calculateOutputShapesDouble(PointerPointer extraPointers, long hash, PointerPointer inputShapes, int numInputShapes, DoublePointer tArgs, int numTArgs, IntPointer iArgs, int numIArgs);
+
+    public abstract Pointer calculateOutputShapesFloat(PointerPointer extraPointers, long hash, PointerPointer inputBuffers, PointerPointer inputShapes, int numInputShapes, FloatPointer tArgs, int numTArgs, IntPointer iArgs, int numIArgs);
+    public abstract Pointer calculateOutputShapesHalf(PointerPointer extraPointers, long hash, PointerPointer inputBuffers, PointerPointer inputShapes, int numInputShapes, @Cast("float16") ShortPointer tArgs, int numTArgs, IntPointer iArgs, int numIArgs);
+    public abstract Pointer calculateOutputShapesDouble(PointerPointer extraPointers, long hash, PointerPointer inputBuffers, PointerPointer inputShapes, int numInputShapes, DoublePointer tArgs, int numTArgs, IntPointer iArgs, int numIArgs);
+
+    public abstract int registerGraphFloat(PointerPointer extraPointers, long graphId, Pointer flatBufferPointer);
+    public abstract int registerGraphDouble(PointerPointer extraPointers, long graphId, Pointer flatBufferPointer);
+    public abstract int registerGraphHalf(PointerPointer extraPointers, long graphId, Pointer flatBufferPointer);
+
+    public abstract Pointer executeStoredGraphFloat(PointerPointer extraPointers, long graphId, PointerPointer inputBuffers, PointerPointer inputShapes, IntPointer inputIndices, int numInputs);
+    public abstract Pointer executeStoredGraphDouble(PointerPointer extraPointers, long graphId, PointerPointer inputBuffers, PointerPointer inputShapes, IntPointer inputIndices, int numInputs);
+    public abstract Pointer executeStoredGraphHalf(PointerPointer extraPointers, long graphId, PointerPointer inputBuffers, PointerPointer inputShapes, IntPointer inputIndices, int numInputs);
+
+    public abstract void deleteShapeList(Pointer ptr);
+
+    public abstract int unregisterGraph(PointerPointer extraPointers, long graphId);
+
+    public abstract void deleteIntArray(Pointer pointer);
+    public abstract void deletePointerArray(Pointer pointer);
+
+    public abstract void deleteVariablesSetFloat(Pointer pointer);
+    public abstract void deleteVariablesSetDouble(Pointer pointer);
+    public abstract void deleteVariablesSetHalf(Pointer pointer);
+
+    // GraphState creation
+    public abstract Pointer getGraphStateHalf(long id);
+    public abstract Pointer getGraphStateFloat(long id);
+    public abstract Pointer getGraphStateDouble(long id);
+
+    public abstract void deleteGraphStateHalf(Pointer state);
+    public abstract void deleteGraphStateFloat(Pointer state);
+    public abstract void deleteGraphStateDouble(Pointer state);
+
+    // this method executes op that requires scope to be present: if/while/cond/whatever
+    public abstract int execCustomOpWithScopeHalf(PointerPointer extraPointers, Pointer state, long opHash, long[] scopes, int numScopes, PointerPointer inputBuffers, PointerPointer inputShapes, int numInputs, PointerPointer outputBuffers, PointerPointer outputShapes, int numOutputs);
+    public abstract int execCustomOpWithScopeFloat(PointerPointer extraPointers, Pointer state, long opHash, long[] scopes, int numScopes, PointerPointer inputBuffers, PointerPointer inputShapes, int numInputs, PointerPointer outputBuffers, PointerPointer outputShapes, int numOutputs);
+    public abstract int execCustomOpWithScopeDouble(PointerPointer extraPointers, Pointer state, long opHash, long[] scopes, int numScopes, PointerPointer inputBuffers, PointerPointer inputShapes, int numInputs, PointerPointer outputBuffers, PointerPointer outputShapes, int numOutputs);
 }

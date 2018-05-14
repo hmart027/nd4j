@@ -63,7 +63,38 @@ public class DataSetTest extends BaseNd4jTest {
         assertEquals(15, count);
         iter.reset();
         assertTrue(iter.hasNext());
+    }
 
+    @Test
+    public void  testViewIterator2(){
+
+        INDArray f = Nd4j.linspace(1,100,100).reshape('c', 10, 10);
+        DataSet ds = new DataSet(f, f);
+        DataSetIterator iter = new ViewIterator(ds, 1);
+        for( int i=0; i<10; i++ ){
+            assertTrue(iter.hasNext());
+            DataSet d = iter.next();
+            INDArray exp = f.getRow(i);
+            assertEquals(exp, d.getFeatures());
+            assertEquals(exp, d.getLabels());
+        }
+        assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void  testViewIterator3(){
+
+        INDArray f = Nd4j.linspace(1,100,100).reshape('c', 10, 10);
+        DataSet ds = new DataSet(f, f);
+        DataSetIterator iter = new ViewIterator(ds, 6);
+        DataSet d1 = iter.next();
+        DataSet d2 = iter.next();
+        assertFalse(iter.hasNext());
+        INDArray e1 = f.get(NDArrayIndex.interval(0,6), NDArrayIndex.all());
+        INDArray e2 = f.get(NDArrayIndex.interval(6,10), NDArrayIndex.all());
+
+        assertEquals(e1, d1.getFeatures());
+        assertEquals(e2, d2.getFeatures());
     }
 
 
@@ -397,6 +428,48 @@ public class DataSetTest extends BaseNd4jTest {
         assertEquals(second, fMerged.get(interval(nExamples1, nExamples1 + nExamples2, true), all(), all(), all()));
         assertEquals(labels1, lMerged.get(interval(0, nExamples1), all()));
         assertEquals(labels2, lMerged.get(interval(nExamples1, nExamples1 + nExamples2), all()));
+
+
+        //Test merging with an empty DataSet (this should be ignored)
+        DataSet merged2 = DataSet.merge(Arrays.asList(ds1, new DataSet(), ds2));
+        assertEquals(merged, merged2);
+
+        //Test merging with no features in one of the DataSets
+        INDArray temp = ds1.getFeatures();
+        ds1.setFeatures(null);
+        try{
+            DataSet.merge(Arrays.asList(ds1, ds2));
+            fail("Expected exception");
+        } catch (IllegalStateException e){
+            //OK
+            assertTrue(e.getMessage().contains("Cannot merge"));
+        }
+
+        try{
+            DataSet.merge(Arrays.asList(ds2, ds1));
+            fail("Expected exception");
+        } catch (IllegalStateException e){
+            //OK
+            assertTrue(e.getMessage().contains("Cannot merge"));
+        }
+
+        ds1.setFeatures(temp);
+        ds2.setLabels(null);
+        try{
+            DataSet.merge(Arrays.asList(ds1, ds2));
+            fail("Expected exception");
+        } catch (IllegalStateException e){
+            //OK
+            assertTrue(e.getMessage().contains("Cannot merge"));
+        }
+
+        try{
+            DataSet.merge(Arrays.asList(ds2, ds1));
+            fail("Expected exception");
+        } catch (IllegalStateException e){
+            //OK
+            assertTrue(e.getMessage().contains("Cannot merge"));
+        }
     }
 
     @Test
@@ -811,6 +884,43 @@ public class DataSetTest extends BaseNd4jTest {
 
         if (labelsSameAsFeatures)
             assertTrue(ds2.getFeatureMatrix() == ds2.getLabels()); //Expect same object
+    }
+
+    @Test
+    public void testMdsShuffle(){
+
+        MultiDataSet orig = new MultiDataSet(Nd4j.linspace(1,100,100).reshape('c',10,10),
+                Nd4j.linspace(100,200,100).reshape('c',10,10));
+
+        MultiDataSet mds = new MultiDataSet(Nd4j.linspace(1,100,100).reshape('c',10,10),
+                Nd4j.linspace(100,200,100).reshape('c',10,10));
+        mds.shuffle();
+
+        assertNotEquals(orig, mds);
+
+        boolean[] foundF = new boolean[10];
+        boolean[] foundL = new boolean[10];
+
+        for( int i=0; i<10; i++ ){
+            double f = mds.getFeatures(0).getDouble(i,0);
+            double l = mds.getLabels(0).getDouble(i,0);
+
+            int fi = (int)(f/10.0);   //21.0 -> 2, etc
+            int li = (int)((l-100)/10.0);   //121.0 -> 2
+
+            foundF[fi] = true;
+            foundL[li] = true;
+        }
+
+        boolean allF = true;
+        boolean allL = true;
+        for( int i=0; i<10; i++ ){
+            allF &= foundF[i];
+            allL &= foundL[i];
+        }
+
+        assertTrue(allF);
+        assertTrue(allL);
     }
 
 

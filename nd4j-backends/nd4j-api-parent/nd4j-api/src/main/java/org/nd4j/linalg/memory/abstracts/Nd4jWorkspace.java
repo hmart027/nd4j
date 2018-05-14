@@ -3,19 +3,19 @@ package org.nd4j.linalg.memory.abstracts;
 import lombok.Data;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.bytedeco.javacpp.BytePointer;
 import org.bytedeco.javacpp.Pointer;
 import org.nd4j.linalg.api.buffer.DataBuffer;
+import org.nd4j.linalg.api.memory.MemoryWorkspace;
+import org.nd4j.linalg.api.memory.conf.WorkspaceConfiguration;
 import org.nd4j.linalg.api.memory.enums.*;
-import org.nd4j.linalg.api.ops.executioner.GridExecutioner;
+import org.nd4j.linalg.api.memory.pointers.PagedPointer;
+import org.nd4j.linalg.api.memory.pointers.PointersPair;
 import org.nd4j.linalg.exception.ND4JIllegalStateException;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.memory.MemoryManager;
-import org.nd4j.linalg.api.memory.MemoryWorkspace;
-import org.nd4j.linalg.api.memory.conf.WorkspaceConfiguration;
-import org.nd4j.linalg.api.memory.pointers.PagedPointer;
-import org.nd4j.linalg.api.memory.pointers.PointersPair;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -43,6 +43,8 @@ public abstract class Nd4jWorkspace implements MemoryWorkspace {
     protected int deviceId;
     @Getter
     protected Long threadId;
+
+    protected Type workspaceType = Type.SCOPED;
 
     protected static final long SAFETY_OFFSET = 1024L;
 
@@ -96,6 +98,7 @@ public abstract class Nd4jWorkspace implements MemoryWorkspace {
     // pinned allocations are purged with delay, used for circular mode only
     protected Queue<PointersPair> pinnedAllocations = new LinkedTransferQueue<>();
 
+    @Setter
     protected MemoryWorkspace previousWorkspace;
     protected MemoryWorkspace borrowingWorkspace;
 
@@ -104,6 +107,8 @@ public abstract class Nd4jWorkspace implements MemoryWorkspace {
     protected String guid;
 
     protected File tempFile;
+
+    protected AtomicLong generationId = new AtomicLong(0);
 
     // this memory manager implementation will be used to allocate real memory for this workspace
 
@@ -115,12 +120,17 @@ public abstract class Nd4jWorkspace implements MemoryWorkspace {
         this.workspaceConfiguration = configuration;
         this.id = workspaceId;
         this.threadId = Thread.currentThread().getId();
-        this.guid = java.util.UUID.randomUUID().toString();
+        this.guid = Nd4j.getWorkspaceManager().getUUID();
         this.memoryManager = Nd4j.getMemoryManager();
         this.deviceId = Nd4j.getAffinityManager().getDeviceForCurrentThread();
 
         // and actual workspace allocation
         currentSize.set(workspaceConfiguration.getInitialSize());
+
+        if (workspaceConfiguration.getPolicyReset() == ResetPolicy.ENDOFBUFFER_REACHED)
+            workspaceType = Type.CIRCULAR;
+        else
+            workspaceType = Type.SCOPED;
 
         if (workspaceConfiguration.getPolicyReset() == ResetPolicy.ENDOFBUFFER_REACHED
                         && workspaceConfiguration.getPolicyAllocation() == AllocationPolicy.OVERALLOCATE) {
@@ -172,6 +182,11 @@ public abstract class Nd4jWorkspace implements MemoryWorkspace {
         init();
     }
 
+    @Override
+    public Type getWorkspaceType() {
+        return this.workspaceType;
+    }
+
     public static void fillFile(File file, long length) throws Exception {
         byte[] buffer = new byte[16384];
         for (int i = 0; i < buffer.length; i++) {
@@ -185,6 +200,11 @@ public abstract class Nd4jWorkspace implements MemoryWorkspace {
                 written += buffer.length;
             }
         }
+    }
+
+    @Override
+    public long getGenerationId() {
+        return generationId.get();
     }
 
     /**
@@ -553,6 +573,10 @@ public abstract class Nd4jWorkspace implements MemoryWorkspace {
             return;
         }
 
+        // this is for safety. We have to be sure that no ops were left non-processed
+        //Furthermore, need to commit before marking workspace as closed, to avoid (incorrectly) hitting scope panic
+        Nd4j.getExecutioner().commit();
+
         // since this workspace block is finished, we restore previous one. Even if it's null
         Nd4j.getMemoryManager().setCurrentWorkspace(previousWorkspace);
         isOpen.set(false);
@@ -583,11 +607,6 @@ public abstract class Nd4jWorkspace implements MemoryWorkspace {
 
             maxCycle.set(cycleAllocations.get());
         }
-
-        // this is for safety. We have to be sure that no ops were left non-processed
-        if (Nd4j.getExecutioner() instanceof GridExecutioner)
-            ((GridExecutioner) Nd4j.getExecutioner()).flushQueue();
-
 
         // checking, if we should reallocate this workspace to higher amount of memory
         if (workspaceConfiguration.getPolicyLearning() != LearningPolicy.NONE && maxCycle.get() > 0) {
@@ -695,6 +714,8 @@ public abstract class Nd4jWorkspace implements MemoryWorkspace {
 
         cycleAllocations.set(0);
         disabledCounter.set(0);
+
+        generationId.incrementAndGet();
 
         return this;
     }

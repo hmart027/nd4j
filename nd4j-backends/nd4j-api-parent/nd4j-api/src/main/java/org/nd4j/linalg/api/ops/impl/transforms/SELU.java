@@ -19,16 +19,17 @@
 
 package org.nd4j.linalg.api.ops.impl.transforms;
 
-import org.apache.commons.math3.util.FastMath;
-import org.nd4j.linalg.api.complex.IComplexNumber;
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.autodiff.samediff.SameDiff;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.BaseTransformOp;
-import org.nd4j.linalg.api.ops.Op;
-import org.nd4j.linalg.api.ops.TransformOp;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * SELU activation function
- *
+ * <p>
  * https://arxiv.org/pdf/1706.02515.pdf
  *
  * @author raver119@gmail.com
@@ -38,7 +39,20 @@ public class SELU extends BaseTransformOp {
     private static final double SELU_ALPHA = 1.6732632423543772848170429916717;
     private static final double SELU_LAMBDA = 1.0507009873554804934193349852946;
 
-    public SELU() {}
+    public SELU(SameDiff sameDiff, SDVariable i_v, boolean inPlace) {
+        super(sameDiff, i_v, inPlace);
+    }
+
+    public SELU(SameDiff sameDiff, SDVariable i_v, int[] shape, boolean inPlace, Object[] extraArgs) {
+        super(sameDiff, i_v, shape, inPlace, extraArgs);
+    }
+
+    public SELU(SameDiff sameDiff, SDVariable i_v, Object[] extraArgs) {
+        super(sameDiff, i_v, extraArgs);
+    }
+
+    public SELU() {
+    }
 
     public SELU(INDArray x, INDArray z) {
         super(x, z);
@@ -58,65 +72,25 @@ public class SELU extends BaseTransformOp {
     }
 
     @Override
-    public String name() {
+    public String opName() {
         return "selu";
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, double other) {
-        throw new UnsupportedOperationException();
+    public String onnxName() {
+        return "Selu";
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, float other) {
-        throw new UnsupportedOperationException();
+    public String tensorflowName() {
+        return "Selu";
     }
 
-    @Override
-    public IComplexNumber op(IComplexNumber origin, IComplexNumber other) {
-        throw new UnsupportedOperationException();
-    }
 
     @Override
-    public float op(float origin, float other) {
-        throw new UnsupportedOperationException();
+    public List<SDVariable> doDiff(List<SDVariable> i_v) {
+        SDVariable ret = f().seluDerivative(arg()).mul(i_v.get(0));
+        return Arrays.asList(ret);
     }
 
-    @Override
-    public double op(double origin, double other) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public double op(double d1) {
-        return d1 > 0.0f ? SELU_LAMBDA * d1 : SELU_LAMBDA * (SELU_ALPHA * FastMath.exp(d1) - SELU_ALPHA);
-    }
-
-    @Override
-    public float op(float d1) {
-        return d1 > 0.0f ? (float) SELU_LAMBDA * d1
-                        : (float) ((float) SELU_LAMBDA * ((float) SELU_ALPHA * FastMath.exp(d1) - (float) SELU_ALPHA));
-    }
-
-    @Override
-    public IComplexNumber op(IComplexNumber origin) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public TransformOp derivative() {
-        return new SELUDerivative(x, z, n);
-    }
-
-    @Override
-    public Op opForDimension(int index, int dimension) {
-        INDArray xAlongDimension = x.vectorAlongDimension(index, dimension);
-        return new SELU(xAlongDimension, z.vectorAlongDimension(index, dimension), xAlongDimension.length());
-    }
-
-    @Override
-    public Op opForDimension(int index, int... dimension) {
-        INDArray xAlongDimension = x.tensorAlongDimension(index, dimension);
-        return new SELU(xAlongDimension, z.tensorAlongDimension(index, dimension), xAlongDimension.length());
-    }
 }

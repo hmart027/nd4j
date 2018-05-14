@@ -19,13 +19,14 @@
 
 package org.nd4j.linalg.api.ops.impl.transforms;
 
-import org.apache.commons.math3.util.FastMath;
-import org.nd4j.linalg.api.complex.IComplexNumber;
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.autodiff.samediff.SameDiff;
+import org.nd4j.imports.NoOpNameFoundException;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.BaseTransformOp;
-import org.nd4j.linalg.api.ops.Op;
-import org.nd4j.linalg.api.ops.TransformOp;
-import org.nd4j.linalg.util.ComplexUtil;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Tanh elementwise function
@@ -33,8 +34,20 @@ import org.nd4j.linalg.util.ComplexUtil;
  * @author raver119@gmail.com
  */
 public class Tan extends BaseTransformOp {
+    public Tan(SameDiff sameDiff, SDVariable i_v, boolean inPlace) {
+        super(sameDiff, i_v, inPlace);
+    }
 
-    public Tan() {}
+    public Tan(SameDiff sameDiff, SDVariable i_v, int[] shape, boolean inPlace, Object[] extraArgs) {
+        super(sameDiff, i_v, shape, inPlace, extraArgs);
+    }
+
+    public Tan(SameDiff sameDiff, SDVariable i_v, Object[] extraArgs) {
+        super(sameDiff, i_v, extraArgs);
+    }
+
+    public Tan() {
+    }
 
     public Tan(INDArray x, INDArray z) {
         super(x, z);
@@ -62,74 +75,28 @@ public class Tan extends BaseTransformOp {
     }
 
     @Override
-    public String name() {
+    public String opName() {
         return "tan";
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, double other) {
-        throw new UnsupportedOperationException();
+    public String onnxName() {
+        throw new NoOpNameFoundException("No onnx op opName found for " + opName());
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, float other) {
-        throw new UnsupportedOperationException();
+    public String tensorflowName() {
+        return "Tan";
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, IComplexNumber other) {
-        throw new UnsupportedOperationException();
+    public List<SDVariable> doDiff(List<SDVariable> i_v) {
+        //d(tan(x))/dx = (sec(x))^2 = 1 / (cos(x))^2
+
+        SDVariable oneDivCos2 = sameDiff.square(sameDiff.cos(arg())).rdiv(1.0);
+        SDVariable ret = oneDivCos2.mul(i_v.get(0));
+        return Arrays.asList(ret);
     }
 
-    @Override
-    public float op(float origin, float other) {
-        return (float) FastMath.tan(origin);
-    }
 
-    @Override
-    public double op(double origin, double other) {
-        return FastMath.tan(origin);
-    }
-
-    @Override
-    public double op(double origin) {
-        return FastMath.tan(origin);
-    }
-
-    @Override
-    public float op(float origin) {
-        return (float) FastMath.tan(origin);
-    }
-
-    @Override
-    public IComplexNumber op(IComplexNumber origin) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public TransformOp derivative() {
-        return new TanDerivative(x, y, z, n);
-    }
-
-    @Override
-    public Op opForDimension(int index, int dimension) {
-        INDArray xAlongDimension = x.vectorAlongDimension(index, dimension);
-        if (y() != null)
-            return new Tan(xAlongDimension, y.vectorAlongDimension(index, dimension),
-                            z.vectorAlongDimension(index, dimension), xAlongDimension.length());
-        else
-            return new Tan(xAlongDimension, z.vectorAlongDimension(index, dimension), xAlongDimension.length());
-
-    }
-
-    @Override
-    public Op opForDimension(int index, int... dimension) {
-        INDArray xAlongDimension = x.tensorAlongDimension(index, dimension);
-        if (y() != null)
-            return new Tan(xAlongDimension, y.tensorAlongDimension(index, dimension),
-                            z.tensorAlongDimension(index, dimension), xAlongDimension.length());
-        else
-            return new Tan(xAlongDimension, z.tensorAlongDimension(index, dimension), xAlongDimension.length());
-
-    }
 }

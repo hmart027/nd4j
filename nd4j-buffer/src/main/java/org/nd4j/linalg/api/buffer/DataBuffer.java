@@ -39,12 +39,14 @@ import java.util.Collection;
 public interface DataBuffer extends Serializable {
 
     enum Type {
-        DOUBLE, FLOAT, INT, HALF, COMPRESSED, LONG,
+        DOUBLE, FLOAT, INT, HALF, COMPRESSED, LONG,UNKNOWN
     }
 
     enum TypeEx {
         FLOAT8, INT8, UINT8, FLOAT16, INT16, UINT16, FLOAT, DOUBLE, THRESHOLD, FTHRESHOLD
     }
+
+    long getGenerationId();
 
 
     /**
@@ -351,9 +353,9 @@ public interface DataBuffer extends Serializable {
     byte[] asBytes();
 
     /**
-     * The data type of the buffer
+     * The data opType of the buffer
      *
-     * @return the data type of the buffer
+     * @return the data opType of the buffer
      */
     Type dataType();
 

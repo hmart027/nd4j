@@ -1,62 +1,49 @@
 package org.nd4j.linalg.api.ops.random;
 
-import org.nd4j.linalg.api.complex.IComplexNumber;
+import lombok.NoArgsConstructor;
+import lombok.val;
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.autodiff.samediff.SameDiff;
 import org.nd4j.linalg.api.ops.BaseOp;
-import org.nd4j.linalg.api.ops.Op;
 import org.nd4j.linalg.api.ops.RandomOp;
+import org.nd4j.linalg.api.shape.Shape;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author raver119@gmail.com
  */
+@NoArgsConstructor
 public abstract class BaseRandomOp extends BaseOp implements RandomOp {
 
-    @Override
-    public IComplexNumber op(IComplexNumber origin, double other) {
-        return null;
+    public BaseRandomOp(SameDiff sameDiff,
+                            SDVariable i_v) {
+        if (i_v != null) {
+            this.sameDiff = sameDiff;
+            this.xVertexId = i_v.getVarName();
+            sameDiff.addArgsFor(new String[]{xVertexId},this);
+            if(Shape.isPlaceholderShape(i_v.getShape())) {
+                sameDiff.addPropertyToResolve(this,i_v.getVarName());
+            }
+        } else {
+            throw new IllegalArgumentException("Input can't be null.");
+        }
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, float other) {
-        return null;
+    public Type opType() {
+        return Type.RANDOM;
     }
 
     @Override
-    public IComplexNumber op(IComplexNumber origin, IComplexNumber other) {
-        return null;
+    public List<int[]> calculateOutputShape() {
+        List<int[]> ret = new ArrayList<>(1);
+        val shape = sameDiff.getShapeForVarName(args()[0].getVarName());
+        if(shape != null)
+            ret.add(shape);
+        return ret;
     }
 
-    @Override
-    public float op(float origin, float other) {
-        return 0;
-    }
 
-    @Override
-    public double op(double origin, double other) {
-        return 0;
-    }
-
-    @Override
-    public double op(double origin) {
-        return 0;
-    }
-
-    @Override
-    public float op(float origin) {
-        return 0;
-    }
-
-    @Override
-    public IComplexNumber op(IComplexNumber origin) {
-        return null;
-    }
-
-    @Override
-    public Op opForDimension(int index, int dimension) {
-        return null;
-    }
-
-    @Override
-    public Op opForDimension(int index, int... dimension) {
-        return null;
-    }
 }

@@ -28,7 +28,7 @@ public class Adam implements IUpdater {
     @lombok.Builder.Default private double learningRate = DEFAULT_ADAM_LEARNING_RATE; // learning rate
     private ISchedule learningRateSchedule;
     @lombok.Builder.Default private double beta1 = DEFAULT_ADAM_BETA1_MEAN_DECAY; // gradient moving avg decay rate
-    @lombok.Builder.Default private double beta2 = DEFAULT_ADAM_BETA2_VAR_DECAY; // gradient sqrd decay rate
+    @lombok.Builder.Default private double beta2 = DEFAULT_ADAM_BETA2_VAR_DECAY; // gradient sqrt decay rate
     @lombok.Builder.Default private double epsilon = DEFAULT_ADAM_EPSILON;
 
     public Adam() {
@@ -86,6 +86,17 @@ public class Adam implements IUpdater {
             return learningRateSchedule.valueAt(iteration, epoch);
         }
         return learningRate;
+    }
+
+    @Override
+    public boolean hasLearningRate() {
+        return true;
+    }
+
+    @Override
+    public void setLrAndSchedule(double lr, ISchedule lrSchedule) {
+        this.learningRate = lr;
+        this.learningRateSchedule = lrSchedule;
     }
 
     //Partial builder implementation to give public no-arg constructor

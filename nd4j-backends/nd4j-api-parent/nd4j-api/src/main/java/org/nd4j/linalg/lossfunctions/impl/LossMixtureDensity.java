@@ -2,23 +2,30 @@ package org.nd4j.linalg.lossfunctions.impl;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import org.nd4j.linalg.primitives.Pair;
+import onnx.OnnxProto3;
+import org.nd4j.autodiff.functions.DifferentialFunction;
+import org.nd4j.autodiff.samediff.SDVariable;
+import org.nd4j.autodiff.samediff.SameDiff;
+import org.nd4j.imports.NoOpNameFoundException;
 import org.nd4j.linalg.activations.IActivation;
 import org.nd4j.linalg.api.ndarray.INDArray;
-import org.nd4j.linalg.api.ops.impl.transforms.SoftMax;
+import org.nd4j.linalg.api.ops.Op;
+import org.nd4j.linalg.api.ops.impl.transforms.OldSoftMax;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.indexing.INDArrayIndex;
 import org.nd4j.linalg.indexing.NDArrayIndex;
 import org.nd4j.linalg.lossfunctions.ILossFunction;
 import org.nd4j.linalg.lossfunctions.LossUtil;
-import org.nd4j.linalg.lossfunctions.serde.RowVectorDeserializer;
-import org.nd4j.linalg.lossfunctions.serde.RowVectorSerializer;
 import org.nd4j.linalg.ops.transforms.Transforms;
+import org.nd4j.linalg.primitives.Pair;
 import org.nd4j.shade.jackson.annotation.JsonInclude;
 import org.nd4j.shade.jackson.annotation.JsonProperty;
-import org.nd4j.shade.jackson.databind.annotation.JsonDeserialize;
-import org.nd4j.shade.jackson.databind.annotation.JsonSerialize;
+import org.tensorflow.framework.AttrValue;
+import org.tensorflow.framework.GraphDef;
+import org.tensorflow.framework.NodeDef;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * This is a cost function associated with a mixture-density network.
@@ -52,11 +59,14 @@ import org.nd4j.shade.jackson.databind.annotation.JsonSerialize;
  */
 @EqualsAndHashCode
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class LossMixtureDensity implements ILossFunction {
+public class LossMixtureDensity extends DifferentialFunction implements ILossFunction {
 
-    private final int mMixtures;
-    private final int mLabelWidth;
+    private  int mMixtures;
+    private  int mLabelWidth;
     private static final double SQRT_TWO_PI = Math.sqrt(2 * Math.PI);
+
+    public LossMixtureDensity() {
+    }
 
     /**
      * This method constructs a mixture density cost function
@@ -125,7 +135,7 @@ public class LossMixtureDensity implements ILossFunction {
 
         // Alpha is a softmax because
         // the alpha should all sum to 1 for a given gaussian mixture.
-        mdc.alpha = Nd4j.getExecutioner().execAndReturn(new SoftMax(mdc.alpha));
+        mdc.alpha = Nd4j.getExecutioner().execAndReturn(new OldSoftMax(mdc.alpha));
 
         // Mu comes directly from the network as an unmolested value.
         // Note that this effectively means that the output layer of
@@ -294,7 +304,7 @@ public class LossMixtureDensity implements ILossFunction {
     }
 
     /**
-     * The name of this function
+     * The opName of this function
      *
      * @return
      */
@@ -409,7 +419,7 @@ public class LossMixtureDensity implements ILossFunction {
          * Specifies the number of gaussian functions to attempt
          * fitting against the data.
          * @param aGaussians Number of gaussian functions to fit.
-         * @return Builder.
+         * @return DynamicCustomOpsBuilder.
          */
         public Builder gaussians(int aGaussians) {
             mGaussians = aGaussians;
@@ -420,7 +430,7 @@ public class LossMixtureDensity implements ILossFunction {
          * Specifies the width of the labels vector which also corresponds
          * to the width of the 'mean' vector for each of the gaussian functions.
          * @param aLabelWidth Width of the labels vector.
-         * @return Builder.
+         * @return DynamicCustomOpsBuilder.
          */
         public Builder labelWidth(int aLabelWidth) {
             mLabelWidth = aLabelWidth;
@@ -444,5 +454,53 @@ public class LossMixtureDensity implements ILossFunction {
             }
             return new LossMixtureDensity(mGaussians, mLabelWidth);
         }
+    }
+
+
+    @Override
+    public SDVariable[] outputVariables() {
+        return new SDVariable[0];
+    }
+
+    @Override
+    public SDVariable[] outputVariables(String baseName) {
+        return new SDVariable[0];
+    }
+
+    @Override
+    public List<SDVariable> doDiff(List<SDVariable> f1) {
+        return null;
+    }
+
+
+
+    @Override
+    public String opName() {
+        return name();
+    }
+
+    @Override
+    public Op.Type opType() {
+        return Op.Type.CUSTOM;
+    }
+
+    @Override
+    public void initFromTensorFlow(NodeDef nodeDef, SameDiff initWith, Map<String, AttrValue> attributesForNode, GraphDef graph) {
+
+    }
+
+    @Override
+    public void initFromOnnx(OnnxProto3.NodeProto node, SameDiff initWith, Map<String, OnnxProto3.AttributeProto> attributesForNode, OnnxProto3.GraphProto graph) {
+
+    }
+
+    @Override
+    public String onnxName() {
+        throw new NoOpNameFoundException("No onnx op name found for " + opName());
+    }
+
+    @Override
+    public String tensorflowName() {
+        throw new NoOpNameFoundException("No tensorflow op name found for " + opName());
     }
 }

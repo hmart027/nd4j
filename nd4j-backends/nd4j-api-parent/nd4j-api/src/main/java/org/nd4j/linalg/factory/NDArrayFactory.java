@@ -147,7 +147,7 @@ public interface NDArrayFactory {
     void setOrder(char order);
 
     /**
-     * Sets the data type
+     * Sets the data opType
      *
      * @param dtype
      */
@@ -170,9 +170,9 @@ public interface NDArrayFactory {
     char order();
 
     /**
-     * Returns the data type for this ndarray
+     * Returns the data opType for this ndarray
      *
-     * @return the data type for this ndarray
+     * @return the data opType for this ndarray
      */
     DataBuffer.Type dtype();
 
@@ -427,6 +427,8 @@ public interface NDArrayFactory {
      */
     INDArray pullRows(INDArray source, int sourceDimension, int[] indexes, char order);
 
+
+    INDArray pullRows(INDArray source, INDArray destination, int sourceDimension, int[] indexes);
 
     /**
      * In place shuffle of an ndarray
@@ -1311,6 +1313,11 @@ public interface NDArrayFactory {
      * @return the created ndarray
      */
     INDArray scalar(Number value);
+
+    INDArray trueScalar(Number value);
+
+    INDArray trueVector(float[] data);
+    INDArray trueVector(double[] data);
 
     /**
      * Create a scalar nd array with the specified value and offset

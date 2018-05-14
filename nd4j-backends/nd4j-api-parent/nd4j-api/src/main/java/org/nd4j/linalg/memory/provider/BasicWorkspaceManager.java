@@ -6,11 +6,11 @@ import org.nd4j.linalg.api.memory.MemoryWorkspace;
 import org.nd4j.linalg.api.memory.MemoryWorkspaceManager;
 import org.nd4j.linalg.api.memory.conf.WorkspaceConfiguration;
 import org.nd4j.linalg.api.memory.enums.*;
-import org.nd4j.linalg.api.memory.pointers.PagedPointer;
 import org.nd4j.linalg.api.memory.pointers.PointersPair;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.memory.abstracts.DummyWorkspace;
 import org.nd4j.linalg.memory.abstracts.Nd4jWorkspace;
+import org.nd4j.util.StringUtils;
 
 import java.lang.ref.ReferenceQueue;
 import java.util.ArrayList;
@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Workspace manager implementation. Please note, this class is supposed to be used via Nd4j.getWorkspaceManager(), to provide consistency between different threads within given JVM process
@@ -26,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public abstract class BasicWorkspaceManager implements MemoryWorkspaceManager {
 
+    protected AtomicLong counter = new AtomicLong();
     protected WorkspaceConfiguration defaultConfiguration;
     protected ThreadLocal<Map<String, MemoryWorkspace>> backingMap = new ThreadLocal<>();
     private ReferenceQueue<MemoryWorkspace> queue;
@@ -44,6 +46,16 @@ public abstract class BasicWorkspaceManager implements MemoryWorkspaceManager {
 
         thread = new WorkspaceDeallocatorThread(this.queue);
         thread.start();
+    }
+
+    /**
+     * Returns globally unique ID
+     *
+     * @return
+     */
+    @Override
+    public String getUUID() {
+        return "Workspace_" + String.valueOf(counter.incrementAndGet());
     }
 
     /**
@@ -198,6 +210,15 @@ public abstract class BasicWorkspaceManager implements MemoryWorkspaceManager {
     }
 
 
+    @Override
+    public boolean checkIfWorkspaceExistsAndActive(@NonNull String id) {
+        boolean exists = checkIfWorkspaceExists(id);
+        if (!exists)
+            return false;
+
+        return backingMap.get().get(id).isScopeActive();
+    }
+
     /**
      * This method temporary opens block out of any workspace scope.
      * <p>
@@ -271,6 +292,8 @@ public abstract class BasicWorkspaceManager implements MemoryWorkspaceManager {
 
                         referenceMap.remove(reference.getKey());
                     }
+                } catch (InterruptedException e) {
+                    return; /* terminate thread when being interrupted */
                 } catch (Exception e) {
                     //
                 }
@@ -286,12 +309,42 @@ public abstract class BasicWorkspaceManager implements MemoryWorkspaceManager {
         Map<String, MemoryWorkspace> map = backingMap.get();
         log.info("Workspace statistics: ---------------------------------");
         log.info("Number of workspaces in current thread: {}", map.size());
+        log.info("Workspace name: Allocated / external (spilled) / external (pinned)");
         for (String key : map.keySet()) {
-            log.info("Workspace: {}", key);
-            log.info("Allocated amount: {} bytes", ((Nd4jWorkspace) map.get(key)).getCurrentSize());
-            log.info("External (spilled) amount: {} bytes", ((Nd4jWorkspace) map.get(key)).getSpilledSize());
-            log.info("External (pinned) amount: {} bytes", ((Nd4jWorkspace) map.get(key)).getPinnedSize());
-            System.out.println();
+            long current = ((Nd4jWorkspace) map.get(key)).getCurrentSize();
+            long spilled = ((Nd4jWorkspace) map.get(key)).getSpilledSize();
+            long pinned = ((Nd4jWorkspace) map.get(key)).getPinnedSize();
+            log.info(String.format("%-26s %8s / %8s / %8s (%11d / %11d / %11d)", (key + ":"),
+                    StringUtils.TraditionalBinaryPrefix.long2String(current, "", 2),
+                    StringUtils.TraditionalBinaryPrefix.long2String(spilled, "", 2),
+                    StringUtils.TraditionalBinaryPrefix.long2String(pinned, "", 2),
+                    current, spilled, pinned));
         }
+    }
+
+
+    @Override
+    public List<String> getAllWorkspacesIdsForCurrentThread() {
+        ensureThreadExistense();
+        return new ArrayList<>(backingMap.get().keySet());
+    }
+
+    @Override
+    public List<MemoryWorkspace> getAllWorkspacesForCurrentThread() {
+        ensureThreadExistense();
+        return new ArrayList<>(backingMap.get().values());
+    }
+
+    @Override
+    public boolean anyWorkspaceActiveForCurrentThread(){
+        ensureThreadExistense();
+        boolean anyActive = false;
+        for(MemoryWorkspace ws : backingMap.get().values()){
+            if(ws.isScopeActive()){
+                anyActive = true;
+                break;
+            }
+        }
+        return anyActive;
     }
 }
